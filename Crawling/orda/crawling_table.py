@@ -5,6 +5,9 @@ import re
 import xml.etree.ElementTree as ET
 from datetime import date
 
+import requests
+
+from Basement.config import get_root_config
 from Basement.http import get_text
 from Basement.parsing import in_range
 
@@ -20,6 +23,7 @@ BAD_PATH_MARKERS = (
 BAD_PATHS = {
     "/ruhani-zha%d2%a3%d2%93yru-czentr-molodezh-i-penthaus-kak-skolotil-sostoyanie-otecz-bajbeka-chast-3/",
 }
+_HEADERS = {"User-Agent": get_root_config("crawling", "user_agent", default="NCCUCorpusCrawler/2.0")}
 
 
 def _locs(xml_text: str) -> list[str]:
@@ -60,6 +64,18 @@ def _usable_article_url(url: str, base: str) -> bool:
     return not any(marker in path for marker in BAD_PATH_MARKERS)
 
 
+def _reachable_article_url(url: str) -> bool:
+    timeout = int(get_root_config("crawling", "request_timeout", default=20))
+    try:
+        response = requests.head(url, headers=_HEADERS, timeout=timeout, allow_redirects=True)
+        if response.status_code == 405:
+            response = requests.get(url, headers=_HEADERS, timeout=timeout, stream=True)
+            response.close()
+    except requests.RequestException:
+        return True
+    return response.status_code not in {404, 410}
+
+
 def crawling_table(
     lang: str,
     start_date: date | None = None,
@@ -91,7 +107,12 @@ def crawling_table(
         for item in items:
             url = item["url"]
             day = item.get("date", "")
-            if not _usable_article_url(url, base) or url in seen or not in_range(day, start_date, end_date):
+            if (
+                not _usable_article_url(url, base)
+                or url in seen
+                or not in_range(day, start_date, end_date)
+                or not _reachable_article_url(url)
+            ):
                 continue
             seen.add(url)
             rows.append({
