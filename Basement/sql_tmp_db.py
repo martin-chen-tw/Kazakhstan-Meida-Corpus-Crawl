@@ -16,6 +16,12 @@ def reset_tmp_db(cfg: SourceConfig, db_root: Path | None = None) -> Path:
     path = tmp_db_path(cfg, db_root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.unlink(missing_ok=True)
+    return ensure_tmp_db(cfg, db_root)
+
+
+def ensure_tmp_db(cfg: SourceConfig, db_root: Path | None = None) -> Path:
+    path = tmp_db_path(cfg, db_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(path)
     try:
         _ensure_schema(con)
@@ -51,6 +57,17 @@ def read_tmp_rows(path: Path) -> list[dict[str, str]]:
     finally:
         con.close()
     return [dict(zip(COLUMNS, row)) for row in rows]
+
+
+def read_tmp_urls(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
+    con = sqlite3.connect(path)
+    try:
+        _ensure_schema(con)
+        return {row[0] for row in con.execute('SELECT "url" FROM rows WHERE "url" != ""').fetchall()}
+    finally:
+        con.close()
 
 
 def _ensure_schema(con: sqlite3.Connection) -> None:

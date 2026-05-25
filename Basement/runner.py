@@ -8,7 +8,7 @@ from queue import Empty
 from .config import db_root_path, get_root_config, get_source_config, list_newspapers, load_source_configs
 from .excel_db import existing_files, merge_rows, read_rows, rewrite_rows
 from .models import ArticleMeta
-from .sql_tmp_db import append_tmp_rows, read_tmp_rows, reset_tmp_db
+from .sql_tmp_db import append_tmp_rows, ensure_tmp_db, read_tmp_rows, read_tmp_urls
 
 def _parse_date(s: str | None) -> date | None:
     return date.fromisoformat(s) if s else None
@@ -40,7 +40,7 @@ def _download_to_queue(newspaper: str, meta: ArticleMeta, pending_queue) -> dict
     return row
 
 def _write_pending_rows(cfg, rebuild: bool, db_root: Path | None, flush_rows: int, pending_queue, result_queue) -> None:
-    tmp_path = reset_tmp_db(cfg, db_root)
+    tmp_path = ensure_tmp_db(cfg, db_root)
     paths = [p for _, p in existing_files(cfg, db_root)]
     buffer = []
     consumed = 0
@@ -87,6 +87,10 @@ def run_source(newspaper: str, lang: str, mode: str, start_date: date | None, en
         return {'newspaper': newspaper, 'lang': lang, 'listed': len(metas), 'written': [], 'dry_run': True}
     root = db_root_path(root_override) if root_override else None
     flush_rows = max(1, int(get_root_config('extracting', 'pending_flush_rows', default=50) or 50))
+    tmp_path = ensure_tmp_db(cfg, root)
+    staged_urls = read_tmp_urls(tmp_path)
+    if staged_urls:
+        metas = [meta for meta in metas if not meta.url or meta.url not in staged_urls]
     pending_queue = Queue()
     result_queue = Queue()
     writer = Process(target=_write_pending_rows, args=(cfg, mode == 'rebuild', root, flush_rows, pending_queue, result_queue))
