@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import xml.etree.ElementTree as ET
 from datetime import date
 
 from Basement.config import get_source_config
@@ -20,6 +21,30 @@ def _article_like(url: str, lang: str) -> bool:
     return url.startswith("https://khabar.kz" + prefix) and re.search(r"/\d{5,}-", url) is not None
 
 
+def _locs(xml_text: str) -> list[str]:
+    try:
+        root = ET.fromstring(xml_text.encode("utf-8"))
+        return [el.text.strip() for el in root.iter() if el.tag.endswith("loc") and el.text]
+    except Exception:
+        return [x.strip() for x in re.findall(r"<loc>(.*?)</loc>", xml_text, re.I | re.S)]
+
+
+def _sitemap_url(lang: str) -> str:
+    return f"https://khabar.kz/{'ru' if lang == 'ru' else 'kk'}/xml-karta"
+
+
+def _row(url: str, lang: str) -> dict[str, str]:
+    return {
+        "newspaper": NEWSPAPER,
+        "lang": lang,
+        "url": url,
+        "title": "",
+        "date": _date_from_url_or_text(url),
+        "time": "",
+        "author": "",
+    }
+
+
 def crawling_table(
     lang: str,
     start_date: date | None = None,
@@ -30,6 +55,22 @@ def crawling_table(
     limit = int(os.environ.get("NCCU_CRAWL_LIMIT", "0") or 0)
     rows: list[dict[str, str]] = []
     seen: set[str] = set()
+    try:
+        for url in _locs(get_text(_sitemap_url(lang), retries=1, timeout=15)):
+            if url in seen or not _article_like(url, lang):
+                continue
+            day = _date_from_url_or_text(url)
+            if not in_range(day, start_date, end_date):
+                continue
+            seen.add(url)
+            rows.append(_row(url, lang))
+            if limit and len(rows) >= limit:
+                return rows if with_metadata else [row["url"] for row in rows]
+    except Exception:
+        pass
+    if rows:
+        return rows if with_metadata else [row["url"] for row in rows]
+
     start = 0
     while True:
         page_url = cfg.base_url + str(start)
@@ -46,7 +87,7 @@ def crawling_table(
             if not in_range(day, start_date, end_date):
                 continue
             seen.add(url)
-            rows.append({"newspaper": NEWSPAPER, "lang": lang, "url": url, "title": "", "date": day, "time": "", "author": ""})
+            rows.append(_row(url, lang))
             added += 1
             if limit and len(rows) >= limit:
                 return rows if with_metadata else [row["url"] for row in rows]
