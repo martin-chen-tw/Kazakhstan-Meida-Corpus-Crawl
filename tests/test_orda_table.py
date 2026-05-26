@@ -27,6 +27,31 @@ class OrdaTableTest(unittest.TestCase):
             self.assertTrue(crawling_table._reachable_article_url("https://orda.kz/head-disabled/"))
         get_response.close.assert_called_once()
 
+    def test_reachable_rows_uses_table_worker_pool(self) -> None:
+        class FakeExecutor:
+            seen_workers: list[int] = []
+
+            def __init__(self, max_workers: int) -> None:
+                self.seen_workers.append(max_workers)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> None:
+                return None
+
+            def map(self, fn, urls):
+                return [url.endswith("/keep/") for url in urls]
+
+        rows = [
+            {"url": "https://orda.kz/drop/"},
+            {"url": "https://orda.kz/keep/"},
+        ]
+
+        with patch.object(crawling_table, "ThreadPoolExecutor", FakeExecutor):
+            self.assertEqual(crawling_table._reachable_rows(rows), [rows[1]])
+        self.assertEqual(FakeExecutor.seen_workers, [10])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
 import requests
@@ -24,6 +25,7 @@ BAD_PATHS = {
     "/ruhani-zha%d2%a3%d2%93yru-czentr-molodezh-i-penthaus-kak-skolotil-sostoyanie-otecz-bajbeka-chast-3/",
 }
 _HEADERS = {"User-Agent": get_root_config("crawling", "user_agent", default="NCCUCorpusCrawler/2.0")}
+TABLE_WORKERS = 10
 
 
 def _locs(xml_text: str) -> list[str]:
@@ -76,6 +78,12 @@ def _reachable_article_url(url: str) -> bool:
     return response.status_code not in {404, 410}
 
 
+def _reachable_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    with ThreadPoolExecutor(max_workers=TABLE_WORKERS) as executor:
+        reachable = executor.map(_reachable_article_url, [row["url"] for row in rows])
+    return [row for row, ok in zip(rows, reachable) if ok]
+
+
 def crawling_table(
     lang: str,
     start_date: date | None = None,
@@ -104,18 +112,20 @@ def crawling_table(
                 break
             continue
         misses = 0
+        candidates: list[dict[str, str]] = []
+        candidate_urls: set[str] = set()
         for item in items:
             url = item["url"]
             day = item.get("date", "")
             if (
                 not _usable_article_url(url, base)
                 or url in seen
+                or url in candidate_urls
                 or not in_range(day, start_date, end_date)
-                or not _reachable_article_url(url)
             ):
                 continue
-            seen.add(url)
-            rows.append({
+            candidate_urls.add(url)
+            candidates.append({
                 "newspaper": NEWSPAPER,
                 "lang": lang,
                 "url": url,
@@ -124,6 +134,9 @@ def crawling_table(
                 "time": item.get("time", ""),
                 "author": item.get("author", ""),
             })
+        for row in _reachable_rows(candidates):
+            seen.add(row["url"])
+            rows.append(row)
             if limit and len(rows) >= limit:
                 break
 
