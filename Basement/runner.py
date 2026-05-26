@@ -75,19 +75,27 @@ def run_source(newspaper: str, lang: str, mode: str, start_date: date | None, en
                limit: int | None, dry_run: bool, threads: int, root_override: str | None) -> dict[str, object]:
     cfg = get_source_config(newspaper, lang)
     table = _site_module(newspaper, 'crawling_table')
+    root = db_root_path(root_override) if root_override else None
+    tmp_path = None
+    if not dry_run and mode != 'rebuild':
+        tmp_path = ensure_tmp_db(cfg, root)
     old_limit = os.environ.get("NCCU_CRAWL_LIMIT")
+    old_staged_db = os.environ.get("NCCU_STAGED_URL_DB")
     if limit: os.environ["NCCU_CRAWL_LIMIT"] = str(limit)
+    if tmp_path is not None:
+        os.environ["NCCU_STAGED_URL_DB"] = str(tmp_path)
     try:
         metas = [ArticleMeta.from_any(x, cfg.newspaper, lang) for x in table.crawling_table(lang, start_date, end_date)]
     finally:
         if old_limit is None: os.environ.pop("NCCU_CRAWL_LIMIT", None)
         else: os.environ["NCCU_CRAWL_LIMIT"] = old_limit
+        if old_staged_db is None: os.environ.pop("NCCU_STAGED_URL_DB", None)
+        else: os.environ["NCCU_STAGED_URL_DB"] = old_staged_db
     if limit: metas = metas[:limit]
     if dry_run:
         return {'newspaper': newspaper, 'lang': lang, 'listed': len(metas), 'written': [], 'dry_run': True}
-    root = db_root_path(root_override) if root_override else None
     flush_rows = max(1, int(get_root_config('extracting', 'pending_flush_rows', default=50) or 50))
-    tmp_path = ensure_tmp_db(cfg, root)
+    tmp_path = tmp_path or ensure_tmp_db(cfg, root)
     staged_urls = read_tmp_urls(tmp_path)
     if staged_urls:
         metas = [meta for meta in metas if not meta.url or meta.url not in staged_urls]

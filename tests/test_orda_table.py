@@ -52,6 +52,13 @@ class OrdaTableTest(unittest.TestCase):
             self.assertEqual(crawling_table._reachable_rows(rows), [rows[1]])
         self.assertEqual(FakeExecutor.seen_workers, [10])
 
+    def test_staged_urls_reads_runner_env_path(self) -> None:
+        with (
+            patch.dict("os.environ", {"NCCU_STAGED_URL_DB": "/tmp/orda_ru.sql"}),
+            patch.object(crawling_table, "read_tmp_urls", return_value={"https://orda.kz/staged/"}),
+        ):
+            self.assertEqual(crawling_table._staged_urls(), {"https://orda.kz/staged/"})
+
 
 if __name__ == "__main__":
     unittest.main()

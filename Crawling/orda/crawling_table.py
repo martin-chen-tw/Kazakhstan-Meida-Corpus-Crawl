@@ -5,12 +5,14 @@ import re
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
+from pathlib import Path
 
 import requests
 
 from Basement.config import get_root_config
 from Basement.http import get_text
 from Basement.parsing import in_range
+from Basement.sql_tmp_db import read_tmp_urls
 
 NEWSPAPER = __name__.split(".")[-2]
 HOST = {"ru": "https://orda.kz", "en": "https://en.orda.kz", "kz": "https://kaz.orda.kz"}
@@ -84,6 +86,18 @@ def _reachable_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
     return [row for row, ok in zip(rows, reachable) if ok]
 
 
+def _staged_urls() -> set[str]:
+    path = os.environ.get("NCCU_STAGED_URL_DB")
+    return read_tmp_urls(Path(path)) if path else set()
+
+
+def _page_items(base: str, page: int) -> list[dict[str, str]] | None:
+    try:
+        return _url_items(get_text(f"{base}/sitemap/sitemap_news{page}.xml"))
+    except Exception:
+        return None
+
+
 def crawling_table(
     lang: str,
     start_date: date | None = None,
@@ -93,51 +107,52 @@ def crawling_table(
     base = HOST.get(lang, HOST["ru"])
     limit = int(os.environ.get("NCCU_CRAWL_LIMIT", "0") or 0)
     rows: list[dict[str, str]] = []
-    seen: set[str] = set()
+    seen: set[str] = _staged_urls()
     misses = 0
 
-    for page in range(1, 1000):
+    for batch_start in range(1, 1000, TABLE_WORKERS):
         if limit and len(rows) >= limit:
             break
-        try:
-            items = _url_items(get_text(f"{base}/sitemap/sitemap_news{page}.xml"))
-        except Exception:
-            misses += 1
-            if misses >= 3:
-                break
-            continue
-        if not items:
-            misses += 1
-            if misses >= 3:
-                break
-            continue
-        misses = 0
-        candidates: list[dict[str, str]] = []
-        candidate_urls: set[str] = set()
-        for item in items:
-            url = item["url"]
-            day = item.get("date", "")
-            if (
-                not _usable_article_url(url, base)
-                or url in seen
-                or url in candidate_urls
-                or not in_range(day, start_date, end_date)
-            ):
-                continue
-            candidate_urls.add(url)
-            candidates.append({
-                "newspaper": NEWSPAPER,
-                "lang": lang,
-                "url": url,
-                "title": item.get("title", ""),
-                "date": day,
-                "time": item.get("time", ""),
-                "author": item.get("author", ""),
-            })
-        for row in _reachable_rows(candidates):
-            seen.add(row["url"])
-            rows.append(row)
+        pages = list(range(batch_start, min(batch_start + TABLE_WORKERS, 1000)))
+        with ThreadPoolExecutor(max_workers=TABLE_WORKERS) as executor:
+            batch_items = list(executor.map(lambda page: _page_items(base, page), pages))
+        for items in batch_items:
             if limit and len(rows) >= limit:
                 break
+            if not items:
+                misses += 1
+                if misses >= 3:
+                    break
+                continue
+            misses = 0
+            candidates: list[dict[str, str]] = []
+            candidate_urls: set[str] = set()
+            for item in items:
+                url = item["url"]
+                day = item.get("date", "")
+                if (
+                    not _usable_article_url(url, base)
+                    or url in seen
+                    or url in candidate_urls
+                    or not in_range(day, start_date, end_date)
+                ):
+                    continue
+                candidate_urls.add(url)
+                candidates.append({
+                    "newspaper": NEWSPAPER,
+                    "lang": lang,
+                    "url": url,
+                    "title": item.get("title", ""),
+                    "date": day,
+                    "time": item.get("time", ""),
+                    "author": item.get("author", ""),
+                })
+            for row in _reachable_rows(candidates):
+                seen.add(row["url"])
+                rows.append(row)
+                if limit and len(rows) >= limit:
+                    break
+        if misses >= 3:
+            break
 
     return rows if with_metadata else [row["url"] for row in rows]
