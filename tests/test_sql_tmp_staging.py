@@ -9,6 +9,7 @@ from pathlib import Path
 from Basement.excel_db import read_rows, write_xlsx
 from Basement.models import SourceConfig
 from Basement.runner import _write_pending_rows
+from Basement import sql_tmp_db
 from Basement.sql_tmp_db import append_tmp_rows, read_tmp_rows, read_tmp_urls, reset_tmp_db, tmp_db_path
 
 
@@ -39,6 +40,16 @@ def _row(url: str, day: str, title: str) -> dict[str, str]:
 
 
 class SqlTmpStagingTest(unittest.TestCase):
+    def test_tmp_connection_uses_busy_timeout(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "busy.sql"
+            con = sql_tmp_db._connect(path)
+            try:
+                timeout = con.execute("PRAGMA busy_timeout").fetchone()[0]
+            finally:
+                con.close()
+            self.assertEqual(timeout, sql_tmp_db.SQLITE_BUSY_TIMEOUT_MS)
+
     def test_tmp_db_path_and_round_trip(self) -> None:
         cfg = _cfg()
         with tempfile.TemporaryDirectory() as raw:
