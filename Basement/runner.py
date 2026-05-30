@@ -8,6 +8,7 @@ from queue import Empty
 from .config import db_root_path, get_root_config, get_source_config, list_newspapers, load_source_configs
 from .excel_db import existing_files, merge_rows, read_rows, rewrite_rows
 from .models import ArticleMeta
+from .parsing import date_from_url, slug_title
 from .sql_tmp_db import append_tmp_rows, ensure_tmp_db, read_tmp_rows, read_tmp_urls
 
 def _parse_date(s: str | None) -> date | None:
@@ -31,8 +32,17 @@ def _download_row(newspaper: str, meta: ArticleMeta) -> dict[str, str]:
             meta.date = result['date']
         if result.get('time') and not meta.time:
             meta.time = result['time']
-        return meta.row(str(result.get('body', '')))
-    return meta.row(str(result))
+        if not meta.title:
+            meta.title = slug_title(meta.url)
+        if not meta.date:
+            meta.date = date_from_url(meta.url)
+        body = str(result.get('body', '') or '').strip() or meta.title
+        return meta.row(body)
+    if not meta.title:
+        meta.title = slug_title(meta.url)
+    if not meta.date:
+        meta.date = date_from_url(meta.url)
+    return meta.row(str(result or '').strip() or meta.title)
 
 def _download_to_queue(newspaper: str, meta: ArticleMeta, pending_queue) -> dict[str, str]:
     row = _download_row(newspaper, meta)
