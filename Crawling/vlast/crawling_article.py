@@ -11,11 +11,6 @@ def _first(pattern: str, html: str) -> str:
     return clean_text(strip_tags(match.group(1))) if match else ""
 
 
-def _date(raw: str, url: str) -> str:
-    match = re.search(r"(20\d{2})[-/.]?(\d{2})[-/.]?(\d{2})", raw)
-    return "-".join(match.groups()) if match else metadata_date(raw, url)
-
-
 def crawling_article(url: str, with_metadata: bool = False) -> str | dict[str, str]:
     html = get_text(str(url))
     title = _first(r"<h1[^>]*>(.*?)</h1>", html) or clean_text(strip_tags(title_from_html(html)))
