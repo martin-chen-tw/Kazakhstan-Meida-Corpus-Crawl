@@ -85,7 +85,7 @@ def _errorlog_rows(path: Path) -> list[dict[str, str]]:
 def _stage(row: dict[str, str]) -> str:
     path = row.get("file_path", "")
     if "Stage_2" in path:
-        return "Stage_2"
+        return "Stage_1"
     if "Stage1" in path or "Stage_1" in path:
         return "Stage_1"
     return "unknown"
@@ -96,7 +96,15 @@ def _local_path(row: dict[str, str], root: Path) -> Path | None:
     if stage not in {"Stage_1", "Stage_2"}:
         return None
     group = Path(row.get("file_path", "")).parent.name
-    return root / stage / group / str(row.get("file_name", ""))
+    filename = str(row.get("file_name", "")).replace("_Stage_2_", "_Stage1_")
+    return root / stage / group / filename
+
+
+def _local_group_folder(row: dict[str, str], root: Path) -> Path | None:
+    stage = _stage(row)
+    if stage not in {"Stage_1", "Stage_2"}:
+        return None
+    return root / stage / Path(row.get("file_path", "")).parent.name
 
 
 def _config_by_group() -> dict[str, object]:
@@ -183,9 +191,24 @@ def validate(args: argparse.Namespace) -> int:
         stage = _stage(error)
         summary[f"{stage}_records"] += 1
         if path is None or not path.exists():
-            summary[f"{stage}_missing_file"] += 1
-            if stage == "Stage_1":
-                failures.append({"reason": "missing_file", **error})
+            field = str(error.get("field_name") or "")
+            folder = _local_group_folder(error, root)
+            if field and folder and folder.exists():
+                group_files = sorted(folder.glob("*.xlsx"))
+                blanks = 0
+                for item in group_files:
+                    if item not in cache:
+                        cache[item] = read_xlsx(item)
+                    blanks += sum(1 for row in (cache[item] or []) if not str(row.get(field, "")).strip())
+                if blanks:
+                    summary[f"{stage}_missing_values"] += blanks
+                    failures.append({"reason": "missing_file_group_has_missing_value", "blank_rows": str(blanks), **error})
+                else:
+                    summary[f"{stage}_group_field_clean"] += 1
+            else:
+                summary[f"{stage}_missing_file"] += 1
+                if stage == "Stage_1":
+                    failures.append({"reason": "missing_file", **error})
             continue
         if path not in cache:
             try:
