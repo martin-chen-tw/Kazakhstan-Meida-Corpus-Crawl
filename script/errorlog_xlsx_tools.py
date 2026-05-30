@@ -148,7 +148,7 @@ def _repair_row(newspaper: str, row: dict[str, str], fields: set[str]) -> tuple[
     updated = dict(row)
     url = updated.get("url", "")
     title_fallback = updated.get("title", "") or slug_title(url)
-    needs_fetch = any(not str(updated.get(field, "")).strip() for field in fields)
+    needs_fetch = "date" in fields and not str(updated.get("date", "")).strip()
     meta = _fetch_metadata(newspaper, url) if needs_fetch and url else {}
     changed = 0
     if "title" in fields and not str(updated.get("title", "")).strip():
@@ -162,7 +162,7 @@ def _repair_row(newspaper: str, row: dict[str, str], fields: set[str]) -> tuple[
             updated["date"] = value[:10]
             changed += 1
     if "body" in fields and not str(updated.get("body", "")).strip():
-        value = meta.get("body", "") or meta.get("description", "") or updated.get("title", "") or meta.get("title", "") or title_fallback
+        value = updated.get("title", "") or title_fallback
         if value:
             updated["body"] = value
             changed += 1
