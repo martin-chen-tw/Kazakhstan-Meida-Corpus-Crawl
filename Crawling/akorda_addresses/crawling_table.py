@@ -19,6 +19,8 @@ MONTHS = {
     "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
     "января": 1, "февраля": 2, "марта": 3, "апреля": 4, "мая": 5, "июня": 6,
     "июля": 7, "августа": 8, "сентября": 9, "октября": 10, "ноября": 11, "декабря": 12,
+    "январь": 1, "февраль": 2, "март": 3, "апрель": 4, "май": 5, "июнь": 6,
+    "июль": 7, "август": 8, "сентябрь": 9, "октябрь": 10, "ноябрь": 11, "декабрь": 12,
     "қаңтар": 1, "ақпан": 2, "наурыз": 3, "сәуір": 4, "мамыр": 5, "маусым": 6,
     "шілде": 7, "тамыз": 8, "қыркүйек": 9, "қазан": 10, "қараша": 11, "желтоқсан": 12,
 }
@@ -27,17 +29,29 @@ MONTHS = {
 def _parse_day(text: str) -> str:
     text = clean_text(strip_tags(text)).replace(",", " ").lower()
     patterns = [
-        r"(\d{1,2})\s+([a-zа-яәіңғүұқөһ]+)\s+(20\d{2})",
-        r"([a-zа-яәіңғүұқөһ]+)\s+(\d{1,2})\s+(20\d{2})",
-        r"(20\d{2})\s+жылғы\s+(\d{1,2})\s+([a-zа-яәіңғүұқөһ]+)",
+        r"(\d{1,2})\s+([a-zа-яәіңғүұқөһ]+)\s+((?:19|20)\d{2})",
+        r"([a-zа-яәіңғүұқөһ]+)\s+(\d{1,2})\s+((?:19|20)\d{2})",
+        r"((?:19|20)\d{2})\s+жылғы\s+(\d{1,2})\s+([a-zа-яәіңғүұқөһ]+)",
+        r"([a-zа-яәіңғүұқөһ]+)\s+((?:19|20)\d{2})",
+        r"((?:19|20)\d{2})\s+жылғы\s+([a-zа-яәіңғүұқөһ]+)",
     ]
     match = next((m for p in patterns if (m := re.search(p, text, re.I))), None)
     if not match:
         return ""
     if match.re.pattern.startswith("(["):
-        month_name, day, year = match.groups()
-    elif match.re.pattern.startswith("(20"):
-        year, day, month_name = match.groups()
+        groups = match.groups()
+        if len(groups) == 2:
+            month_name, year = groups
+            day = "1"
+        else:
+            month_name, day, year = groups
+    elif match.re.pattern.startswith("((?:19|20)"):
+        groups = match.groups()
+        if len(groups) == 2:
+            year, month_name = groups
+            day = "1"
+        else:
+            year, day, month_name = groups
     else:
         day, month_name, year = match.groups()
     month = MONTHS.get(month_name)

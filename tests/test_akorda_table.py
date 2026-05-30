@@ -22,6 +22,13 @@ class AkordaTableDateTest(unittest.TestCase):
 
         self.assertEqual(rows[0]["date"], "2007-02-28")
 
+    def test_addresses_parses_legacy_address_title_dates(self) -> None:
+        table = import_module("Crawling.akorda_addresses.crawling_table")
+
+        self.assertEqual(table._parse_day("September 30, 1998"), "1998-09-30")
+        self.assertEqual(table._parse_day("Сентябрь 1998 г."), "1998-09-01")
+        self.assertEqual(table._parse_day("1999 жылғы қыркүйек"), "1999-09-01")
+
     def test_speeches_reads_h5_date_after_title(self) -> None:
         table = import_module("Crawling.akorda_speeches.crawling_table")
         html = """
