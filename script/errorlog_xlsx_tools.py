@@ -144,11 +144,14 @@ def _fetch_metadata(newspaper: str, url: str) -> dict[str, str]:
         return {}
 
 
-def _repair_row(newspaper: str, row: dict[str, str], fields: set[str]) -> tuple[int, dict[str, str]]:
+def _repair_row(newspaper: str, row: dict[str, str], fields: set[str], default_date: str) -> tuple[int, dict[str, str]]:
     updated = dict(row)
     url = updated.get("url", "")
     title_fallback = updated.get("title", "") or slug_title(url)
-    needs_fetch = "date" in fields and not str(updated.get("date", "")).strip()
+    local_date = _parse_day(updated.get("title", "")) or date_from_url(url)
+    needs_fetch = "date" in fields and not str(updated.get("date", "")).strip() and not local_date
+    if newspaper == "vlast":
+        needs_fetch = False
     meta = _fetch_metadata(newspaper, url) if needs_fetch and url else {}
     changed = 0
     if "title" in fields and not str(updated.get("title", "")).strip():
@@ -157,7 +160,7 @@ def _repair_row(newspaper: str, row: dict[str, str], fields: set[str]) -> tuple[
             updated["title"] = value
             changed += 1
     if "date" in fields and not str(updated.get("date", "")).strip():
-        value = meta.get("date", "") or _parse_day(updated.get("title", "")) or _parse_day(meta.get("title", "")) or date_from_url(url)
+        value = meta.get("date", "") or local_date or _parse_day(meta.get("title", "")) or default_date
         if value:
             updated["date"] = value[:10]
             changed += 1
@@ -247,7 +250,8 @@ def repair(args: argparse.Namespace) -> int:
             print(f"[REPAIR] {group}: fields={sorted(fields)} targets={len(targets)}")
             changed_rows: list[dict[str, str]] = []
             with ThreadPoolExecutor(max_workers=args.workers) as executor:
-                future_map = {executor.submit(_repair_row, cfg.newspaper, row, fields): row for row in targets}
+                default_date = cfg.default_start_date.isoformat()
+                future_map = {executor.submit(_repair_row, cfg.newspaper, row, fields, default_date): row for row in targets}
                 for index, future in enumerate(as_completed(future_map), 1):
                     changed, updated = future.result()
                     if changed:
