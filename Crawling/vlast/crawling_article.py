@@ -12,7 +12,7 @@ def _first(pattern: str, html: str) -> str:
 
 
 def crawling_article(url: str, with_metadata: bool = False) -> str | dict[str, str]:
-    html = get_text(str(url))
+    html = get_text(str(url), retries=1, timeout=12)
     title = _first(r"<h1[^>]*>(.*?)</h1>", html) or clean_text(strip_tags(title_from_html(html)))
     date = metadata_date(html, str(url))
     author = meta_content(html, ["author", "article:author"])
