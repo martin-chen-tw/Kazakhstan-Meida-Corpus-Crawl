@@ -20,5 +20,5 @@ def crawling_article(url: str, with_metadata: bool = False) -> str | dict[str, s
     if not blocks:
         blocks = re.findall(r"(?is)<p[^>]*>(.*?)</p>", html)
     body = clean_text("\n".join(strip_tags(block) for block in blocks)) or description_from_html(html) or title
-    result = {"title": title, "date": date, "time": "", "author": author, "body": body}
+    result = {"title": title, "date": date, "time": "", "author": author, "body": body, "rowdata": html}
     return result if with_metadata else body

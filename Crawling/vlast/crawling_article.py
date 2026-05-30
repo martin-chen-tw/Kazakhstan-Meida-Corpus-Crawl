@@ -18,5 +18,5 @@ def crawling_article(url: str, with_metadata: bool = False) -> str | dict[str, s
     author = meta_content(html, ["author", "article:author"])
     paragraphs = [strip_tags(p) for p in re.findall(r"(?is)<p[^>]*>(.*?)</p>", html)]
     body = clean_text("\n".join(p for p in paragraphs if len(p.strip()) > 30)) or description_from_html(html)
-    result = {"title": title, "date": date, "time": "", "author": author, "body": body}
+    result = {"title": title, "date": date, "time": "", "author": author, "body": body, "rowdata": html}
     return result if with_metadata else body

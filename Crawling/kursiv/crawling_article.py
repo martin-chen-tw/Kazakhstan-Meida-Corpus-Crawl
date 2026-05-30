@@ -48,6 +48,7 @@ def crawling_article(url: str, with_metadata: bool = False) -> str | dict[str, s
     )
     return {
         "body": body or title,
+        "rowdata": html,
         "author": _first(r'<div[^>]+class=["\'][^"\']*author-card__name[^"\']*["\'][^>]*>\s*<a[^>]*>(.*?)</a>', html)
         or _first(r'<div[^>]+class=["\'][^"\']*subcat-article__header__author-info[^"\']*["\'][^>]*>.*?<p[^>]*>(.*?)</p>', html),
         "title": title,

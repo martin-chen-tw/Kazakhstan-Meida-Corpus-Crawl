@@ -36,6 +36,7 @@ def crawling_article(url: str, with_metadata: bool = False) -> str | dict[str, s
         return body
     return {
         "body": body,
+        "rowdata": html,
         "author": parts.get("author", ""),
         "title": title,
         "date": _parse_day(_first(r"<h2[^>]*class=[\"'][^\"']*mt-5[^\"']*[\"'][^>]*>.*?</h2>\s*<h5[^>]*>(.*?)</h5>", html)) or parts.get("date", "") or _parse_day(title),

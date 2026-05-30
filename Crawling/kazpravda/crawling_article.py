@@ -49,6 +49,7 @@ def crawling_article(url: str, with_metadata: bool = False) -> str | dict[str, s
     title = _first(r'<h1[^>]+class=["\'][^"\']*article__title[^"\']*["\'][^>]*>(.*?)</h1>', html)
     return {
         "body": body or description_from_html(html) or title,
+        "rowdata": html,
         "author": "",
         "title": title,
         "date": metadata_date(html, str(url)) or _date(_first(r'<time[^>]+class=["\'][^"\']*article__date[^"\']*["\'][^>]*>(.*?)</time>', html)),

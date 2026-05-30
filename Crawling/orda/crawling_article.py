@@ -53,5 +53,5 @@ def crawling_article(url: str, with_metadata: bool = False) -> str | dict[str, s
         title = slug_title(str(url))
     if not body:
         body = description_from_html(html) or title
-    result = {"title": title, "date": date, "time": "", "author": author, "body": body}
+    result = {"title": title, "date": date, "time": "", "author": author, "body": body, "rowdata": html}
     return result if with_metadata else body

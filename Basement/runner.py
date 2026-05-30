@@ -37,7 +37,8 @@ def _download_row(newspaper: str, meta: ArticleMeta) -> dict[str, str]:
         if not meta.date:
             meta.date = date_from_url(meta.url)
         body = str(result.get('body', '') or '').strip() or meta.title
-        return meta.row(body)
+        rowdata = str(result.get('rowdata', '') or '')
+        return meta.row(body, rowdata)
     if not meta.title:
         meta.title = slug_title(meta.url)
     if not meta.date:
