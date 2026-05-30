@@ -76,6 +76,10 @@ def read_tmp_urls(path: Path) -> set[str]:
 def _ensure_schema(con: sqlite3.Connection) -> None:
     cols = ", ".join(f"{_quote(col)} TEXT NOT NULL DEFAULT ''" for col in COLUMNS)
     con.execute(f"CREATE TABLE IF NOT EXISTS rows (id INTEGER PRIMARY KEY AUTOINCREMENT, {cols})")
+    existing = {row[1] for row in con.execute('PRAGMA table_info("rows")').fetchall()}
+    for col in COLUMNS:
+        if col not in existing:
+            con.execute(f'ALTER TABLE rows ADD COLUMN {_quote(col)} TEXT NOT NULL DEFAULT ""')
 
 
 def _connect(path: Path) -> sqlite3.Connection:

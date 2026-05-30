@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import sqlite3
 from datetime import date
 from multiprocessing import Queue
 from pathlib import Path
 
 from Basement.excel_db import read_rows, write_xlsx
-from Basement.models import SourceConfig
+from Basement.models import ArticleMeta, SourceConfig
 from Basement.runner import _write_pending_rows
 from Basement import sql_tmp_db
 from Basement.sql_tmp_db import append_tmp_rows, read_tmp_rows, read_tmp_urls, reset_tmp_db, tmp_db_path
@@ -36,6 +37,7 @@ def _row(url: str, day: str, title: str) -> dict[str, str]:
         "time": "",
         "author": "",
         "body": title,
+        "rowdata": f"<html>{title}</html>",
     }
 
 
@@ -62,6 +64,59 @@ class SqlTmpStagingTest(unittest.TestCase):
 
             self.assertEqual(read_tmp_rows(path), rows)
             self.assertEqual(read_tmp_urls(path), {"https://example.test/1"})
+
+    def test_article_meta_row_emits_rowdata(self) -> None:
+        row = ArticleMeta(newspaper="tengri", lang="en", url="https://example.test/1").row(
+            "body",
+            "<html>raw</html>",
+        )
+
+        self.assertEqual(row["body"], "body")
+        self.assertEqual(row["rowdata"], "<html>raw</html>")
+
+    def test_large_rowdata_round_trips_through_tmp_sql(self) -> None:
+        cfg = _cfg()
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            path = reset_tmp_db(cfg, root)
+            row = _row("https://example.test/large", "2020-01-01", "large")
+            row["rowdata"] = "<html>" + ("raw <tag> & text\n" * 4000) + "</html>"
+
+            append_tmp_rows(path, [row])
+
+            self.assertEqual(read_tmp_rows(path)[0]["rowdata"], row["rowdata"])
+
+    def test_existing_tmp_db_missing_rowdata_is_migrated(self) -> None:
+        cfg = _cfg()
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            path = root / "sql_tmp" / "tengri_en.sql"
+            path.parent.mkdir(parents=True)
+            con = sqlite3.connect(path)
+            try:
+                con.execute(
+                    'CREATE TABLE rows (id INTEGER PRIMARY KEY AUTOINCREMENT, '
+                    '"newspaper" TEXT NOT NULL DEFAULT "", '
+                    '"url" TEXT NOT NULL DEFAULT "", '
+                    '"title" TEXT NOT NULL DEFAULT "", '
+                    '"date" TEXT NOT NULL DEFAULT "", '
+                    '"time" TEXT NOT NULL DEFAULT "", '
+                    '"author" TEXT NOT NULL DEFAULT "", '
+                    '"body" TEXT NOT NULL DEFAULT "")'
+                )
+                con.execute(
+                    'INSERT INTO rows ("newspaper", "url", "title", "date", "time", "author", "body") '
+                    'VALUES ("tengri", "https://example.test/old", "old", "2020-01-01", "", "", "old body")'
+                )
+                con.commit()
+            finally:
+                con.close()
+
+            sql_tmp_db.ensure_tmp_db(cfg, root)
+            rows = read_tmp_rows(path)
+
+            self.assertEqual(rows[0]["url"], "https://example.test/old")
+            self.assertEqual(rows[0]["rowdata"], "")
 
     def test_update_stages_rows_then_merges_once(self) -> None:
         cfg = _cfg()

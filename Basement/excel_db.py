@@ -60,6 +60,9 @@ def read_xlsx(path: Path) -> list[dict[str, str]]:
     except Exception:
         return []
 
+def canonical_row(row: dict[str, str]) -> dict[str, str]:
+    return {col: str(row.get(col, "") or "") for col in COLUMNS}
+
 def folder_for(cfg: SourceConfig, db_root: Path | None = None) -> Path:
     return (db_root or db_root_path()) / 'Stage_1' / cfg.save_path
 
@@ -68,7 +71,7 @@ def existing_files(cfg: SourceConfig, db_root: Path | None = None) -> list[tuple
     return sorted((int(m.group(1)), p) for p in folder.glob('*.xlsx') if (m := pat.match(p.name)))
 
 def read_rows(cfg: SourceConfig, db_root: Path | None = None) -> list[dict[str, str]]:
-    return [r for _, p in existing_files(cfg, db_root) for r in read_xlsx(p)]
+    return [canonical_row(r) for _, p in existing_files(cfg, db_root) for r in read_xlsx(p)]
 
 def _parse_date(row: dict[str, str]) -> date:
     try:
