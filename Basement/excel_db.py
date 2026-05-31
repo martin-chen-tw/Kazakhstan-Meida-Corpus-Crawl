@@ -1,5 +1,5 @@
 from __future__ import annotations
-import re, zipfile
+import re, shutil, subprocess, tempfile, zipfile
 from datetime import date, time
 from html import escape, unescape
 from itertools import chain
@@ -41,23 +41,49 @@ def write_xlsx_stream(path: Path, rows: Iterable[dict[str, str]], columns: list[
         'xl/workbook.xml': '<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>',
         'xl/_rels/workbook.xml.rels': '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
     }
+    if shutil.which("zip"):
+        _write_xlsx_stream_external_zip(path, rows, columns, files)
+        return
     tmp_path = path.with_name(f".{path.name}.tmp")
     try:
         with zipfile.ZipFile(tmp_path, 'w', zipfile.ZIP_DEFLATED) as z:
             for name, data in files.items(): z.writestr(name, data)
             with z.open('xl/worksheets/sheet1.xml', 'w') as sheet:
-                sheet.write(b'<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>')
-                for r, row in enumerate(chain([dict(zip(columns, columns))], rows), 1):
-                    sheet.write(f'<row r="{r}">'.encode("utf-8"))
-                    for c, name in enumerate(columns, 1):
-                        sheet.write(f'<c r="{_col(c)}{r}" t="inlineStr"><is><t>'.encode("utf-8"))
-                        _write_xml_text(sheet, row.get(name, ""))
-                        sheet.write(b'</t></is></c>')
-                    sheet.write(b'</row>')
-                sheet.write(b'</sheetData></worksheet>')
+                _write_sheet_xml(sheet, rows, columns)
         tmp_path.replace(path)
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+def _write_xlsx_stream_external_zip(path: Path, rows: Iterable[dict[str, str]], columns: list[str], files: dict[str, str]) -> None:
+    tmp_path = path.with_name(f".{path.name}.tmp")
+    tmp_dir = Path(tempfile.mkdtemp(prefix=f".{path.name}.", dir=path.parent))
+    try:
+        for name, data in files.items():
+            file_path = tmp_dir / name
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.write_text(data, encoding="utf-8")
+        sheet_path = tmp_dir / "xl" / "worksheets" / "sheet1.xml"
+        sheet_path.parent.mkdir(parents=True, exist_ok=True)
+        with sheet_path.open("wb") as sheet:
+            _write_sheet_xml(sheet, rows, columns)
+        subprocess.run(["zip", "-q", "-r", str(tmp_path), "."], cwd=tmp_dir, check=True)
+        tmp_path.replace(path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def _write_sheet_xml(sheet, rows: Iterable[dict[str, str]], columns: list[str]) -> None:
+    sheet.write(b'<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>')
+    for r, row in enumerate(chain([dict(zip(columns, columns))], rows), 1):
+        sheet.write(f'<row r="{r}">'.encode("utf-8"))
+        for c, name in enumerate(columns, 1):
+            sheet.write(f'<c r="{_col(c)}{r}" t="inlineStr"><is><t>'.encode("utf-8"))
+            _write_xml_text(sheet, row.get(name, ""))
+            sheet.write(b'</t></is></c>')
+        sheet.write(b'</row>')
+    sheet.write(b'</sheetData></worksheet>')
 
 def read_xlsx(path: Path) -> list[dict[str, str]]:
     try:
