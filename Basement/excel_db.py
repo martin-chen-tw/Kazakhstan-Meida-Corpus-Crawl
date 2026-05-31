@@ -4,7 +4,7 @@ from datetime import date, time
 from html import escape, unescape
 from itertools import chain
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Iterator
 from xml.etree import ElementTree as ET
 from .config import db_root_path, get_root_config
 from .models import COLUMNS, SourceConfig
@@ -133,19 +133,27 @@ def rewrite_sorted_rows(cfg: SourceConfig, rows: Iterable[dict[str, str]], db_ro
     folder = folder_for(cfg, db_root); folder.mkdir(parents=True, exist_ok=True)
     clear_rows(cfg, db_root)
     written = []
-    chunk = []
+    row_iter = iter(rows)
     idx = 1
-    for row in rows:
-        chunk.append(row)
-        if len(chunk) >= max_rows:
-            path = folder / f'{cfg.base_filename}{idx}.xlsx'
-            write_xlsx(path, chunk); written.append(path)
-            chunk = []
-            idx += 1
-    if chunk:
+    while True:
+        try:
+            first = next(row_iter)
+        except StopIteration:
+            break
         path = folder / f'{cfg.base_filename}{idx}.xlsx'
-        write_xlsx(path, chunk); written.append(path)
+        write_xlsx_stream(path, _limited_rows(first, row_iter, max_rows))
+        written.append(path)
+        idx += 1
     return written
+
+
+def _limited_rows(first: dict[str, str], rows: Iterator[dict[str, str]], limit: int) -> Iterator[dict[str, str]]:
+    yield first
+    for _ in range(limit - 1):
+        try:
+            yield next(rows)
+        except StopIteration:
+            return
 
 def write_rows(cfg: SourceConfig, rows: list[dict[str, str]], rebuild: bool = False, db_root: Path | None = None) -> list[Path]:
     old_rows = [] if rebuild else read_rows(cfg, db_root)
