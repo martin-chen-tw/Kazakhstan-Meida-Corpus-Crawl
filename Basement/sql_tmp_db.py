@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from typing import Iterator
 
 from .config import db_root_path
 from .models import COLUMNS, SourceConfig
@@ -50,16 +51,42 @@ def append_tmp_rows(path: Path, rows: list[dict[str, str]]) -> None:
 
 
 def read_tmp_rows(path: Path) -> list[dict[str, str]]:
+    return list(iter_tmp_rows(path))
+
+
+def iter_tmp_rows(path: Path, *, sorted_for_output: bool = False) -> Iterator[dict[str, str]]:
     if not path.exists():
-        return []
+        return
     con = _connect(path)
     try:
         _ensure_schema(con)
         quoted_cols = ", ".join(_quote(col) for col in COLUMNS)
-        rows = con.execute(f"SELECT {quoted_cols} FROM rows ORDER BY id").fetchall()
+        if sorted_for_output:
+            order_by = (
+                'CASE WHEN substr("date", 1, 10) GLOB "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]" '
+                'THEN substr("date", 1, 10) ELSE "9999-12-31" END, '
+                'CASE WHEN "time" != "" THEN substr("time", 1, 8) '
+                'WHEN instr("date", "T") > 0 THEN substr(substr("date", instr("date", "T") + 1), 1, 8) '
+                'ELSE "00:00:00" END, '
+                "id"
+            )
+        else:
+            order_by = "id"
+        for row in con.execute(f"SELECT {quoted_cols} FROM rows ORDER BY {order_by}"):
+            yield dict(zip(COLUMNS, row))
     finally:
         con.close()
-    return [dict(zip(COLUMNS, row)) for row in rows]
+
+
+def count_tmp_rows(path: Path) -> int:
+    if not path.exists():
+        return 0
+    con = _connect(path)
+    try:
+        _ensure_schema(con)
+        return int(con.execute("SELECT COUNT(*) FROM rows").fetchone()[0] or 0)
+    finally:
+        con.close()
 
 
 def read_tmp_urls(path: Path) -> set[str]:

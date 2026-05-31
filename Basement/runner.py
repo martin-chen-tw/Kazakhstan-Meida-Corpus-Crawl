@@ -6,10 +6,10 @@ from multiprocessing import Process, Queue
 from pathlib import Path
 from queue import Empty
 from .config import db_root_path, get_root_config, get_source_config, list_newspapers, load_source_configs
-from .excel_db import existing_files, merge_rows, read_rows, rewrite_rows
+from .excel_db import existing_files, merge_rows, read_rows, rewrite_rows, rewrite_sorted_rows
 from .models import ArticleMeta
 from .parsing import date_from_url, slug_title
-from .sql_tmp_db import append_tmp_rows, ensure_tmp_db, read_tmp_rows, read_tmp_urls
+from .sql_tmp_db import append_tmp_rows, count_tmp_rows, ensure_tmp_db, iter_tmp_rows, read_tmp_rows, read_tmp_urls
 
 def _parse_date(s: str | None) -> date | None:
     return date.fromisoformat(s) if s else None
@@ -69,14 +69,21 @@ def _write_pending_rows(cfg, rebuild: bool, db_root: Path | None, flush_rows: in
     if buffer:
         append_tmp_rows(tmp_path, buffer)
         flushes += 1
-    new_rows = read_tmp_rows(tmp_path)
-    old_rows = [] if rebuild else read_rows(cfg, db_root)
-    rows = merge_rows(old_rows, new_rows, rebuild=rebuild)
-    if new_rows or rebuild or not paths:
-        paths = rewrite_rows(cfg, rows, db_root)
+    if rebuild or not paths:
+        row_count = count_tmp_rows(tmp_path)
+        if row_count or rebuild or not paths:
+            paths = rewrite_sorted_rows(cfg, iter_tmp_rows(tmp_path, sorted_for_output=True), db_root)
+        rows_count = row_count
+    else:
+        new_rows = read_tmp_rows(tmp_path)
+        old_rows = read_rows(cfg, db_root)
+        rows = merge_rows(old_rows, new_rows, rebuild=False)
+        if new_rows:
+            paths = rewrite_rows(cfg, rows, db_root)
+        rows_count = len(rows)
     result_queue.put({
         'consumed': consumed,
-        'rows': len(rows),
+        'rows': rows_count,
         'flushes': flushes,
         'tmp_db': str(tmp_path),
         'written': [str(p) for p in paths],

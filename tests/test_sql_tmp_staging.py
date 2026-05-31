@@ -6,6 +6,7 @@ import sqlite3
 from datetime import date
 from multiprocessing import Queue
 from pathlib import Path
+from unittest.mock import patch
 
 from Basement.excel_db import read_rows, write_xlsx
 from Basement.models import ArticleMeta, SourceConfig
@@ -187,6 +188,30 @@ class SqlTmpStagingTest(unittest.TestCase):
             self.assertEqual([row["url"] for row in rows], [
                 "https://example.test/done",
                 "https://example.test/next",
+            ])
+
+    def test_first_build_streams_tmp_rows_to_xlsx_without_materializing_all_rows(self) -> None:
+        cfg = _cfg()
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            tmp = reset_tmp_db(cfg, root)
+            append_tmp_rows(tmp, [
+                _row("https://example.test/newer", "2020-01-03", "newer"),
+                _row("https://example.test/new", "2020-01-02", "new"),
+            ])
+
+            pending, result = Queue(), Queue()
+            pending.put(None)
+
+            with patch("Basement.runner.read_tmp_rows", side_effect=AssertionError("must stream tmp rows")):
+                _write_pending_rows(cfg, rebuild=False, db_root=root, flush_rows=50, pending_queue=pending, result_queue=result)
+
+            info = result.get(timeout=1)
+            rows = read_rows(cfg, root)
+            self.assertEqual(info["rows"], 2)
+            self.assertEqual([row["url"] for row in rows], [
+                "https://example.test/new",
+                "https://example.test/newer",
             ])
 
 

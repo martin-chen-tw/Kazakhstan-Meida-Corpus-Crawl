@@ -2,7 +2,9 @@ from __future__ import annotations
 import re, zipfile
 from datetime import date, time
 from html import escape, unescape
+from itertools import chain
 from pathlib import Path
+from typing import Iterable
 from xml.etree import ElementTree as ET
 from .config import db_root_path, get_root_config
 from .models import COLUMNS, SourceConfig
@@ -19,27 +21,30 @@ def _xml_text(value: object) -> str:
     return escape(INVALID_XML_CHARS.sub("", str(value or "")))
 
 def write_xlsx(path: Path, rows: list[dict[str, str]], columns: list[str] = COLUMNS) -> None:
+    write_xlsx_stream(path, rows, columns)
+
+
+def write_xlsx_stream(path: Path, rows: Iterable[dict[str, str]], columns: list[str] = COLUMNS) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    cells = []
-    all_rows = [dict(zip(columns, columns))] + rows
-    for r, row in enumerate(all_rows, 1):
-        cs = []
-        for c, name in enumerate(columns, 1):
-            value = _xml_text(row.get(name, ""))
-            cs.append(f'<c r="{_col(c)}{r}" t="inlineStr"><is><t>{value}</t></is></c>')
-        cells.append(f'<row r="{r}">{"".join(cs)}</row>')
-    sheet = '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>' + ''.join(cells) + '</sheetData></worksheet>'
     files = {
         '[Content_Types].xml': '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>',
         '_rels/.rels': '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
         'xl/workbook.xml': '<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>',
         'xl/_rels/workbook.xml.rels': '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
-        'xl/worksheets/sheet1.xml': sheet,
     }
     tmp_path = path.with_name(f".{path.name}.tmp")
     try:
         with zipfile.ZipFile(tmp_path, 'w', zipfile.ZIP_DEFLATED) as z:
             for name, data in files.items(): z.writestr(name, data)
+            with z.open('xl/worksheets/sheet1.xml', 'w') as sheet:
+                sheet.write(b'<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>')
+                for r, row in enumerate(chain([dict(zip(columns, columns))], rows), 1):
+                    cells = []
+                    for c, name in enumerate(columns, 1):
+                        value = _xml_text(row.get(name, ""))
+                        cells.append(f'<c r="{_col(c)}{r}" t="inlineStr"><is><t>{value}</t></is></c>')
+                    sheet.write(f'<row r="{r}">{"".join(cells)}</row>'.encode("utf-8"))
+                sheet.write(b'</sheetData></worksheet>')
         tmp_path.replace(path)
     finally:
         tmp_path.unlink(missing_ok=True)
@@ -120,12 +125,26 @@ def merge_rebuild(rows: list[dict[str, str]]) -> list[dict[str, str]]:
 def rewrite_rows(cfg: SourceConfig, rows: list[dict[str, str]], db_root: Path | None = None) -> list[Path]:
     max_rows = int(get_root_config('extracting', 'save_xlsx_file_per_data', default=1000))
     rows = sort_rows(rows)
+    return rewrite_sorted_rows(cfg, rows, db_root)
+
+
+def rewrite_sorted_rows(cfg: SourceConfig, rows: Iterable[dict[str, str]], db_root: Path | None = None) -> list[Path]:
+    max_rows = int(get_root_config('extracting', 'save_xlsx_file_per_data', default=1000))
     folder = folder_for(cfg, db_root); folder.mkdir(parents=True, exist_ok=True)
     clear_rows(cfg, db_root)
     written = []
-    for i in range(0, len(rows), max_rows):
-        idx = i // max_rows + 1; path = folder / f'{cfg.base_filename}{idx}.xlsx'
-        write_xlsx(path, rows[i:i + max_rows]); written.append(path)
+    chunk = []
+    idx = 1
+    for row in rows:
+        chunk.append(row)
+        if len(chunk) >= max_rows:
+            path = folder / f'{cfg.base_filename}{idx}.xlsx'
+            write_xlsx(path, chunk); written.append(path)
+            chunk = []
+            idx += 1
+    if chunk:
+        path = folder / f'{cfg.base_filename}{idx}.xlsx'
+        write_xlsx(path, chunk); written.append(path)
     return written
 
 def write_rows(cfg: SourceConfig, rows: list[dict[str, str]], rebuild: bool = False, db_root: Path | None = None) -> list[Path]:
