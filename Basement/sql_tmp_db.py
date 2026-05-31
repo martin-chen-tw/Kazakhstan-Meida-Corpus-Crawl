@@ -62,16 +62,10 @@ def iter_tmp_rows(path: Path, *, sorted_for_output: bool = False) -> Iterator[di
         _ensure_schema(con)
         quoted_cols = ", ".join(_quote(col) for col in COLUMNS)
         if sorted_for_output:
-            order_by = (
-                'CASE WHEN substr("date", 1, 10) GLOB "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]" '
-                'THEN substr("date", 1, 10) ELSE "9999-12-31" END, '
-                'CASE WHEN "time" != "" THEN substr("time", 1, 8) '
-                'WHEN instr("date", "T") > 0 THEN substr(substr("date", instr("date", "T") + 1), 1, 8) '
-                'ELSE "00:00:00" END, '
-                "id"
-            )
-            ids = [row[0] for row in con.execute(f"SELECT id FROM rows ORDER BY {order_by}")]
-            for row_id in ids:
+            keys = []
+            for row_id, row_date, row_time in con.execute('SELECT id, "date", "time" FROM rows'):
+                keys.append((_sort_date_key(row_date), _sort_time_key(row_date, row_time), row_id))
+            for _, _, row_id in sorted(keys):
                 row = con.execute(f"SELECT {quoted_cols} FROM rows WHERE id = ?", (row_id,)).fetchone()
                 if row is not None:
                     yield dict(zip(COLUMNS, row))
@@ -118,8 +112,29 @@ def _ensure_schema(con: sqlite3.Connection) -> None:
 def _connect(path: Path) -> sqlite3.Connection:
     con = sqlite3.connect(path, timeout=SQLITE_TIMEOUT_SECONDS)
     con.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
+    con.execute("PRAGMA temp_store=FILE")
+    con.execute("PRAGMA cache_size=-65536")
     return con
 
 
 def _quote(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
+
+
+def _sort_date_key(value: object) -> str:
+    text = str(value or "")[:10]
+    if len(text) == 10 and text[4] == "-" and text[7] == "-" and text.replace("-", "").isdigit():
+        return text
+    return "9999-12-31"
+
+
+def _sort_time_key(row_date: object, row_time: object) -> str:
+    text = str(row_time or "")
+    if not text and "T" in str(row_date or ""):
+        text = str(row_date or "").split("T", 1)[1]
+    if "T" in text:
+        text = text.split("T", 1)[1]
+    text = text.split("+", 1)[0].split("Z", 1)[0][:8]
+    if len(text) == 8 and text[2] == ":" and text[5] == ":":
+        return text
+    return "00:00:00"
