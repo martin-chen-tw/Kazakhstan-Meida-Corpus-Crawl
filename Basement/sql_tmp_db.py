@@ -70,6 +70,12 @@ def iter_tmp_rows(path: Path, *, sorted_for_output: bool = False) -> Iterator[di
                 'ELSE "00:00:00" END, '
                 "id"
             )
+            ids = [row[0] for row in con.execute(f"SELECT id FROM rows ORDER BY {order_by}")]
+            for row_id in ids:
+                row = con.execute(f"SELECT {quoted_cols} FROM rows WHERE id = ?", (row_id,)).fetchone()
+                if row is not None:
+                    yield dict(zip(COLUMNS, row))
+            return
         else:
             order_by = "id"
         for row in con.execute(f"SELECT {quoted_cols} FROM rows ORDER BY {order_by}"):
