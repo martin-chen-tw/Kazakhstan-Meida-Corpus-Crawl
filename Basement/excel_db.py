@@ -10,7 +10,7 @@ from .config import db_root_path, get_root_config
 from .models import COLUMNS, SourceConfig
 
 INVALID_XML_CHARS = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\uD800-\uDFFF\uFFFE\uFFFF]")
-XML_TEXT_CHUNK_SIZE = 65536
+XML_TEXT_CHUNK_SIZE = 4096
 
 def _col(n: int) -> str:
     s = ""

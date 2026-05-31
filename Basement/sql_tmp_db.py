@@ -113,7 +113,8 @@ def _connect(path: Path) -> sqlite3.Connection:
     con = sqlite3.connect(path, timeout=SQLITE_TIMEOUT_SECONDS)
     con.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
     con.execute("PRAGMA temp_store=FILE")
-    con.execute("PRAGMA cache_size=-65536")
+    con.execute("PRAGMA cache_size=-8192")
+    con.execute("PRAGMA mmap_size=0")
     return con
 
 
