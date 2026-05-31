@@ -10,6 +10,7 @@ from .config import db_root_path, get_root_config
 from .models import COLUMNS, SourceConfig
 
 INVALID_XML_CHARS = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\uD800-\uDFFF\uFFFE\uFFFF]")
+XML_TEXT_CHUNK_SIZE = 65536
 
 def _col(n: int) -> str:
     s = ""
@@ -19,6 +20,14 @@ def _col(n: int) -> str:
 
 def _xml_text(value: object) -> str:
     return escape(INVALID_XML_CHARS.sub("", str(value or "")))
+
+
+def _write_xml_text(sheet, value: object) -> None:
+    text = str(value or "")
+    for start in range(0, len(text), XML_TEXT_CHUNK_SIZE):
+        chunk = INVALID_XML_CHARS.sub("", text[start:start + XML_TEXT_CHUNK_SIZE])
+        if chunk:
+            sheet.write(escape(chunk).encode("utf-8"))
 
 def write_xlsx(path: Path, rows: list[dict[str, str]], columns: list[str] = COLUMNS) -> None:
     write_xlsx_stream(path, rows, columns)
@@ -39,11 +48,12 @@ def write_xlsx_stream(path: Path, rows: Iterable[dict[str, str]], columns: list[
             with z.open('xl/worksheets/sheet1.xml', 'w') as sheet:
                 sheet.write(b'<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>')
                 for r, row in enumerate(chain([dict(zip(columns, columns))], rows), 1):
-                    cells = []
+                    sheet.write(f'<row r="{r}">'.encode("utf-8"))
                     for c, name in enumerate(columns, 1):
-                        value = _xml_text(row.get(name, ""))
-                        cells.append(f'<c r="{_col(c)}{r}" t="inlineStr"><is><t>{value}</t></is></c>')
-                    sheet.write(f'<row r="{r}">{"".join(cells)}</row>'.encode("utf-8"))
+                        sheet.write(f'<c r="{_col(c)}{r}" t="inlineStr"><is><t>'.encode("utf-8"))
+                        _write_xml_text(sheet, row.get(name, ""))
+                        sheet.write(b'</t></is></c>')
+                    sheet.write(b'</row>')
                 sheet.write(b'</sheetData></worksheet>')
         tmp_path.replace(path)
     finally:
