@@ -11,6 +11,8 @@ from .models import ArticleMeta
 from .parsing import date_from_url, slug_title
 from .sql_tmp_db import append_tmp_rows, count_tmp_rows, ensure_tmp_db, iter_tmp_rows, read_tmp_rows, read_tmp_urls
 
+STREAM_REWRITE_ROW_THRESHOLD = 10000
+
 def _parse_date(s: str | None) -> date | None:
     return date.fromisoformat(s) if s else None
 
@@ -70,10 +72,9 @@ def _write_pending_rows(cfg, rebuild: bool, db_root: Path | None, flush_rows: in
         if buffer:
             append_tmp_rows(tmp_path, buffer)
             flushes += 1
-        if rebuild or not paths:
-            row_count = count_tmp_rows(tmp_path)
-            if row_count or rebuild or not paths:
-                paths = rewrite_sorted_rows(cfg, iter_tmp_rows(tmp_path, sorted_for_output=True), db_root)
+        row_count = count_tmp_rows(tmp_path)
+        if rebuild or not paths or row_count >= STREAM_REWRITE_ROW_THRESHOLD:
+            paths = rewrite_sorted_rows(cfg, iter_tmp_rows(tmp_path, sorted_for_output=True), db_root)
             rows_count = row_count
         else:
             new_rows = read_tmp_rows(tmp_path)
