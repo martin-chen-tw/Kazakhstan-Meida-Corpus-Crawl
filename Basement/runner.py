@@ -1,6 +1,6 @@
 from __future__ import annotations
 import argparse, importlib, os
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, ThreadPoolExecutor, as_completed, wait
 from datetime import date
 from multiprocessing import Process, Queue
 from pathlib import Path
@@ -116,12 +116,27 @@ def run_source(newspaper: str, lang: str, mode: str, start_date: date | None, en
     writer.start()
     rows = 0
     with ThreadPoolExecutor(max_workers=threads) as ex:
-        futs = [ex.submit(_download_to_queue, newspaper, m, pending_queue) for m in metas]
-        for fut in as_completed(futs):
-            try:
-                fut.result()
-                rows += 1
-            except Exception as e: print(f'[WARN] article failed: {e}')
+        metas_iter = iter(metas)
+        max_pending = max(threads, threads * 4)
+        pending = set()
+
+        def submit_until_full() -> None:
+            while len(pending) < max_pending:
+                try:
+                    meta = next(metas_iter)
+                except StopIteration:
+                    return
+                pending.add(ex.submit(_download_to_queue, newspaper, meta, pending_queue))
+
+        submit_until_full()
+        while pending:
+            done, pending = wait(pending, return_when=FIRST_COMPLETED)
+            submit_until_full()
+            for fut in done:
+                try:
+                    fut.result()
+                    rows += 1
+                except Exception as e: print(f'[WARN] article failed: {e}')
     pending_queue.put(None)
     writer.join()
     if writer.exitcode:
