@@ -1,5 +1,5 @@
 from __future__ import annotations
-import re, shutil, subprocess, tempfile, zipfile
+import ctypes, gc, re, shutil, subprocess, tempfile, zipfile
 from datetime import date, time
 from html import escape, unescape
 from itertools import chain
@@ -11,6 +11,10 @@ from .models import COLUMNS, SourceConfig
 
 INVALID_XML_CHARS = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\uD800-\uDFFF\uFFFE\uFFFF]")
 XML_TEXT_CHUNK_SIZE = 4096
+try:
+    LIBC = ctypes.CDLL("libc.so.6")
+except Exception:
+    LIBC = None
 
 def _col(n: int) -> str:
     s = ""
@@ -45,6 +49,7 @@ def write_xlsx_stream(path: Path, rows: Iterable[dict[str, str]], columns: list[
         _write_xlsx_stream_external_zip(path, rows, columns, files)
         return
     tmp_path = path.with_name(f".{path.name}.tmp")
+    tmp_path.unlink(missing_ok=True)
     try:
         with zipfile.ZipFile(tmp_path, 'w', zipfile.ZIP_DEFLATED) as z:
             for name, data in files.items(): z.writestr(name, data)
@@ -57,6 +62,7 @@ def write_xlsx_stream(path: Path, rows: Iterable[dict[str, str]], columns: list[
 
 def _write_xlsx_stream_external_zip(path: Path, rows: Iterable[dict[str, str]], columns: list[str], files: dict[str, str]) -> None:
     tmp_path = path.with_name(f".{path.name}.tmp")
+    tmp_path.unlink(missing_ok=True)
     tmp_dir = Path(tempfile.mkdtemp(prefix=f".{path.name}.", dir=path.parent))
     try:
         for name, data in files.items():
@@ -179,6 +185,7 @@ def rewrite_sorted_rows(cfg: SourceConfig, rows: Iterable[dict[str, str]], db_ro
         path = folder / f'{cfg.base_filename}{idx}.xlsx'
         write_xlsx_stream(path, _limited_rows(first, row_iter, max_rows))
         written.append(path)
+        _release_memory()
         idx += 1
     return written
 
@@ -190,6 +197,15 @@ def _limited_rows(first: dict[str, str], rows: Iterator[dict[str, str]], limit: 
             yield next(rows)
         except StopIteration:
             return
+
+
+def _release_memory() -> None:
+    gc.collect()
+    if LIBC is not None:
+        try:
+            LIBC.malloc_trim(0)
+        except Exception:
+            pass
 
 def write_rows(cfg: SourceConfig, rows: list[dict[str, str]], rebuild: bool = False, db_root: Path | None = None) -> list[Path]:
     old_rows = [] if rebuild else read_rows(cfg, db_root)
