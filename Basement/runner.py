@@ -2,9 +2,9 @@ from __future__ import annotations
 import argparse, importlib, os
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, ThreadPoolExecutor, as_completed, wait
 from datetime import date
-from multiprocessing import Process, Queue
 from pathlib import Path
-from queue import Empty
+from queue import Empty, Queue
+from threading import Thread
 from .config import db_root_path, get_root_config, get_source_config, list_newspapers, load_source_configs
 from .excel_db import existing_files, merge_rows, read_rows, rewrite_rows, rewrite_sorted_rows
 from .models import ArticleMeta
@@ -51,43 +51,46 @@ def _download_to_queue(newspaper: str, meta: ArticleMeta, pending_queue) -> dict
     return row
 
 def _write_pending_rows(cfg, rebuild: bool, db_root: Path | None, flush_rows: int, pending_queue, result_queue) -> None:
-    tmp_path = ensure_tmp_db(cfg, db_root)
-    paths = [p for _, p in existing_files(cfg, db_root)]
-    buffer = []
-    consumed = 0
-    flushes = 0
-    while True:
-        row = pending_queue.get()
-        if row is None:
-            break
-        buffer.append(row)
-        consumed += 1
-        if len(buffer) >= flush_rows:
+    try:
+        tmp_path = ensure_tmp_db(cfg, db_root)
+        paths = [p for _, p in existing_files(cfg, db_root)]
+        buffer = []
+        consumed = 0
+        flushes = 0
+        while True:
+            row = pending_queue.get()
+            if row is None:
+                break
+            buffer.append(row)
+            consumed += 1
+            if len(buffer) >= flush_rows:
+                append_tmp_rows(tmp_path, buffer)
+                buffer = []
+                flushes += 1
+        if buffer:
             append_tmp_rows(tmp_path, buffer)
-            buffer = []
             flushes += 1
-    if buffer:
-        append_tmp_rows(tmp_path, buffer)
-        flushes += 1
-    if rebuild or not paths:
-        row_count = count_tmp_rows(tmp_path)
-        if row_count or rebuild or not paths:
-            paths = rewrite_sorted_rows(cfg, iter_tmp_rows(tmp_path, sorted_for_output=True), db_root)
-        rows_count = row_count
-    else:
-        new_rows = read_tmp_rows(tmp_path)
-        old_rows = read_rows(cfg, db_root)
-        rows = merge_rows(old_rows, new_rows, rebuild=False)
-        if new_rows:
-            paths = rewrite_rows(cfg, rows, db_root)
-        rows_count = len(rows)
-    result_queue.put({
-        'consumed': consumed,
-        'rows': rows_count,
-        'flushes': flushes,
-        'tmp_db': str(tmp_path),
-        'written': [str(p) for p in paths],
-    })
+        if rebuild or not paths:
+            row_count = count_tmp_rows(tmp_path)
+            if row_count or rebuild or not paths:
+                paths = rewrite_sorted_rows(cfg, iter_tmp_rows(tmp_path, sorted_for_output=True), db_root)
+            rows_count = row_count
+        else:
+            new_rows = read_tmp_rows(tmp_path)
+            old_rows = read_rows(cfg, db_root)
+            rows = merge_rows(old_rows, new_rows, rebuild=False)
+            if new_rows:
+                paths = rewrite_rows(cfg, rows, db_root)
+            rows_count = len(rows)
+        result_queue.put({
+            'consumed': consumed,
+            'rows': rows_count,
+            'flushes': flushes,
+            'tmp_db': str(tmp_path),
+            'written': [str(p) for p in paths],
+        })
+    except Exception as exc:
+        result_queue.put({'error': repr(exc)})
 
 def run_source(newspaper: str, lang: str, mode: str, start_date: date | None, end_date: date | None,
                limit: int | None, dry_run: bool, threads: int, root_override: str | None) -> dict[str, object]:
@@ -119,7 +122,7 @@ def run_source(newspaper: str, lang: str, mode: str, start_date: date | None, en
         metas = [meta for meta in metas if not meta.url or meta.url not in staged_urls]
     pending_queue = Queue()
     result_queue = Queue()
-    writer = Process(target=_write_pending_rows, args=(cfg, mode == 'rebuild', root, flush_rows, pending_queue, result_queue))
+    writer = Thread(target=_write_pending_rows, args=(cfg, mode == 'rebuild', root, flush_rows, pending_queue, result_queue))
     writer.start()
     rows = 0
     with ThreadPoolExecutor(max_workers=threads) as ex:
@@ -146,12 +149,12 @@ def run_source(newspaper: str, lang: str, mode: str, start_date: date | None, en
                 except Exception as e: print(f'[WARN] article failed: {e}')
     pending_queue.put(None)
     writer.join()
-    if writer.exitcode:
-        raise RuntimeError(f'writer process failed: exitcode={writer.exitcode}')
     try:
         result = result_queue.get(timeout=5)
     except Empty:
         result = {'written': [str(p) for _, p in existing_files(cfg, root)]}
+    if result.get('error'):
+        raise RuntimeError(f"writer failed: {result['error']}")
     return {'newspaper': newspaper, 'lang': lang, 'listed': len(metas), 'rows': rows,
             'flushes': result.get('flushes', 0), 'tmp_db': result.get('tmp_db', ''),
             'written': result.get('written', [])}
