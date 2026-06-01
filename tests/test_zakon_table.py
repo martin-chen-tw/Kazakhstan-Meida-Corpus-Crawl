@@ -47,7 +47,7 @@ class ZakonTableTest(unittest.TestCase):
         self.assertEqual(kz["date"], "2026-05-30")
 
     def test_page_cache_avoids_duplicate_fetches(self) -> None:
-        with patch.object(zakon_table, "get_text", return_value=RU_PAGE) as get_text:
+        with patch.object(zakon_table, "_bounded_get_text", return_value=RU_PAGE) as get_text:
             self.assertEqual(len(zakon_table._items_from_page("ru", 1)), 1)
             self.assertEqual(len(zakon_table._items_from_page("ru", 1)), 1)
 
@@ -65,7 +65,7 @@ class ZakonTableTest(unittest.TestCase):
 
         with (
             patch.dict("os.environ", {"NCCU_CRAWL_LIMIT": "1"}),
-            patch.object(zakon_table, "get_text", side_effect=fake_get),
+            patch.object(zakon_table, "_bounded_get_text", side_effect=fake_get),
         ):
             urls = zakon_table.crawling_table("ru", with_metadata=False)
 
@@ -78,7 +78,7 @@ class ZakonTableTest(unittest.TestCase):
             requested.append(url)
             return ""
 
-        with patch.object(zakon_table, "get_text", side_effect=fake_get):
+        with patch.object(zakon_table, "_bounded_get_text", side_effect=fake_get):
             rows = zakon_table.crawling_table("ru")
 
         self.assertEqual(rows, [])
@@ -92,7 +92,7 @@ class ZakonTableTest(unittest.TestCase):
             requested.append(url)
             return RU_PAGE
 
-        with patch.object(zakon_table, "get_text", side_effect=fake_get):
+        with patch.object(zakon_table, "_bounded_get_text", side_effect=fake_get):
             rows = zakon_table.crawling_table("ru")
 
         self.assertEqual(len(rows), 1)
@@ -105,7 +105,7 @@ class ZakonTableTest(unittest.TestCase):
             requested.append(url)
             return RU_PAGE
 
-        with patch.object(zakon_table, "get_text", side_effect=fake_get):
+        with patch.object(zakon_table, "_bounded_get_text", side_effect=fake_get):
             rows = zakon_table.crawling_table("ru", start_date=date(2026, 6, 1))
 
         self.assertEqual(rows, [])

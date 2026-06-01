@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 from datetime import date
 
 from Basement.config import get_source_config
@@ -57,8 +58,40 @@ def _sort_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
 def _page_text(lang: str, page: int) -> str:
     key = (lang, page)
     if key not in _PAGE_CACHE:
-        _PAGE_CACHE[key] = get_text(_load_more_url(lang, page), retries=2)
+        _PAGE_CACHE[key] = _bounded_get_text(_load_more_url(lang, page))
     return _PAGE_CACHE[key]
+
+
+def _bounded_get_text(url: str) -> str:
+    try:
+        proc = subprocess.run(
+            [
+                "curl",
+                "-L",
+                "--silent",
+                "--show-error",
+                "--compressed",
+                "--connect-timeout",
+                "5",
+                "--max-time",
+                "15",
+                "--user-agent",
+                "Mozilla/5.0",
+                "--header",
+                "Connection: close",
+                "--fail",
+                url,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=17,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            return proc.stdout
+    except Exception:
+        pass
+    return get_text(url, retries=1, timeout=12)
 
 
 def _response_html(text: str) -> str:
