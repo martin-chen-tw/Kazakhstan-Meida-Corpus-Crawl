@@ -69,11 +69,12 @@ def _usable_article_url(url: str, base: str) -> bool:
 
 
 def _reachable_article_url(url: str) -> bool:
-    timeout = int(get_root_config("crawling", "request_timeout", default=20))
+    root_timeout = float(get_root_config("crawling", "request_timeout", default=20))
+    timeout = float(os.environ.get("NCCU_ORDA_REACHABILITY_TIMEOUT", min(root_timeout, 5)))
     try:
-        response = requests.head(url, headers=_HEADERS, timeout=timeout, allow_redirects=True)
+        response = requests.head(url, headers=_HEADERS, timeout=(timeout, timeout), allow_redirects=True)
         if response.status_code == 405:
-            response = requests.get(url, headers=_HEADERS, timeout=timeout, stream=True)
+            response = requests.get(url, headers=_HEADERS, timeout=(timeout, timeout), stream=True)
             response.close()
     except requests.RequestException:
         return True
