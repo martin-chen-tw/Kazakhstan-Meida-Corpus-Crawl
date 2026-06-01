@@ -82,7 +82,7 @@ class ZakonTableTest(unittest.TestCase):
             rows = zakon_table.crawling_table("ru")
 
         self.assertEqual(rows, [])
-        self.assertEqual(len(requested), zakon_table.CONSECUTIVE_EMPTY_STOP)
+        self.assertEqual(len(requested), zakon_table.TABLE_WORKERS)
         self.assertFalse(any("sitemap" in url for url in requested))
 
     def test_duplicate_only_pages_stop(self) -> None:
@@ -96,7 +96,7 @@ class ZakonTableTest(unittest.TestCase):
             rows = zakon_table.crawling_table("ru")
 
         self.assertEqual(len(rows), 1)
-        self.assertEqual(len(requested), 1 + zakon_table.CONSECUTIVE_DUPLICATE_STOP)
+        self.assertEqual(len(requested), zakon_table.TABLE_WORKERS)
 
     def test_date_window_stops_when_page_is_older(self) -> None:
         requested: list[str] = []
@@ -109,7 +109,7 @@ class ZakonTableTest(unittest.TestCase):
             rows = zakon_table.crawling_table("ru", start_date=date(2026, 6, 1))
 
         self.assertEqual(rows, [])
-        self.assertEqual(len(requested), 1)
+        self.assertEqual(len(requested), zakon_table.TABLE_WORKERS)
 
     def test_max_page_cap_is_bounded(self) -> None:
         class Cfg:

@@ -4,9 +4,10 @@ import json
 import os
 import re
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
-from Basement.config import get_source_config
+from Basement.config import get_root_config, get_source_config
 from Basement.http import absolute, get_text, strip_tags
 from Basement.parsing import clean_text, in_range
 
@@ -19,6 +20,7 @@ LOAD_MORE_HOSTS = {
 DEFAULT_MAX_PAGE = 10000
 CONSECUTIVE_EMPTY_STOP = 2
 CONSECUTIVE_DUPLICATE_STOP = 2
+TABLE_WORKERS = 10
 _PAGE_CACHE: dict[tuple[str, int], str] = {}
 
 
@@ -145,6 +147,13 @@ def _items_from_page(lang: str, page: int) -> list[dict[str, str]]:
     return _items_from_page_html(_response_html(_page_text(lang, page)), lang)
 
 
+def _safe_items_from_page(lang: str, page: int) -> list[dict[str, str]]:
+    try:
+        return _items_from_page(lang, page)
+    except Exception:
+        return []
+
+
 def _first_date(text: str) -> str:
     patterns = [
         r"(20\d{2})[-/.](\d{2})[-/.](\d{2})",
@@ -196,46 +205,52 @@ def crawling_table(
     seen: set[str] = set()
     consecutive_empty = 0
     consecutive_duplicate = 0
+    workers = int(get_root_config("concurrency", "threads_per_newspaper", default=TABLE_WORKERS) or TABLE_WORKERS)
+    max_page = _max_page(cfg)
+    stop = False
 
-    for page in range(1, _max_page(cfg) + 1):
-        try:
-            items = _items_from_page(lang, page)
-        except Exception:
-            consecutive_empty += 1
-            if consecutive_empty >= CONSECUTIVE_EMPTY_STOP:
-                break
-            continue
-        if not items:
-            consecutive_empty += 1
-            if consecutive_empty >= CONSECUTIVE_EMPTY_STOP:
-                break
-            continue
-        consecutive_empty = 0
-        if _all_known_dates_older(items, start_date):
-            break
-        added = 0
-        for item in items:
-            url = item["url"]
-            if url in seen or not in_range(item.get("date", ""), start_date, end_date):
+    for batch_start in range(1, max_page + 1, max(1, workers)):
+        pages = list(range(batch_start, min(batch_start + max(1, workers), max_page + 1)))
+        with ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
+            batch_items = list(executor.map(lambda page: _safe_items_from_page(lang, page), pages))
+        for items in batch_items:
+            if not items:
+                consecutive_empty += 1
+                if consecutive_empty >= CONSECUTIVE_EMPTY_STOP:
+                    stop = True
+                    break
                 continue
-            seen.add(url)
-            rows.append({
-                "newspaper": NEWSPAPER,
-                "lang": lang,
-                "url": url,
-                "title": item.get("title", ""),
-                "date": item.get("date", ""),
-                "time": item.get("time", ""),
-                "author": "",
-            })
-            added += 1
-        if added == 0:
-            consecutive_duplicate += 1
-            if consecutive_duplicate >= CONSECUTIVE_DUPLICATE_STOP:
+            consecutive_empty = 0
+            if _all_known_dates_older(items, start_date):
+                stop = True
                 break
-        else:
-            consecutive_duplicate = 0
-        if limit and len(rows) >= limit:
+            added = 0
+            for item in items:
+                url = item["url"]
+                if url in seen or not in_range(item.get("date", ""), start_date, end_date):
+                    continue
+                seen.add(url)
+                rows.append({
+                    "newspaper": NEWSPAPER,
+                    "lang": lang,
+                    "url": url,
+                    "title": item.get("title", ""),
+                    "date": item.get("date", ""),
+                    "time": item.get("time", ""),
+                    "author": "",
+                })
+                added += 1
+            if added == 0:
+                consecutive_duplicate += 1
+                if consecutive_duplicate >= CONSECUTIVE_DUPLICATE_STOP:
+                    stop = True
+                    break
+            else:
+                consecutive_duplicate = 0
+            if limit and len(rows) >= limit:
+                stop = True
+                break
+        if stop:
             break
 
     sorted_rows = _sort_rows(rows)
