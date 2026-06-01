@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 
 from Basement.http import get_text, meta_content, strip_tags
 from Basement.parsing import clean_text, extract_article_parts
@@ -120,8 +121,40 @@ def _author(html: str, fallback: str = "") -> str:
     return fallback
 
 
+def _get_article_html(url: str) -> str:
+    try:
+        proc = subprocess.run(
+            [
+                "curl",
+                "-L",
+                "--silent",
+                "--show-error",
+                "--compressed",
+                "--connect-timeout",
+                "5",
+                "--max-time",
+                "15",
+                "--user-agent",
+                "Mozilla/5.0",
+                "--header",
+                "Connection: close",
+                "--fail",
+                str(url),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=17,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            return proc.stdout
+    except Exception:
+        pass
+    return get_text(str(url), retries=1, timeout=12)
+
+
 def crawling_article(url: str, with_metadata: bool = False) -> str | dict[str, str]:
-    html = get_text(str(url))
+    html = _get_article_html(str(url))
     parts = extract_article_parts(html)
     lead = _json_ld_body(html)
     body = _merge_lead_and_body(lead, _body_from_container(html)) or parts.get("body", "")
