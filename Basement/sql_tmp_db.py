@@ -84,7 +84,7 @@ def count_tmp_rows(path: Path) -> int:
     con = _connect(path)
     try:
         _ensure_schema(con)
-        return int(con.execute("SELECT COUNT(*) FROM rows").fetchone()[0] or 0)
+        return int(con.execute("SELECT MAX(id) FROM rows").fetchone()[0] or 0)
     finally:
         con.close()
 
