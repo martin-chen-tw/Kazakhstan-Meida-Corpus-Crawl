@@ -2,32 +2,13 @@ from __future__ import annotations
 
 import unittest
 from importlib import import_module
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 crawling_table = import_module("Crawling.orda.crawling_table")
 
 
 class OrdaTableTest(unittest.TestCase):
-    def test_reachable_article_url_skips_explicit_404(self) -> None:
-        response = Mock(status_code=404)
-        with patch.object(crawling_table.requests, "head", return_value=response):
-            self.assertFalse(crawling_table._reachable_article_url("https://orda.kz/missing/"))
-
-    def test_reachable_article_url_keeps_transient_request_errors(self) -> None:
-        with patch.object(crawling_table.requests, "head", side_effect=crawling_table.requests.Timeout):
-            self.assertTrue(crawling_table._reachable_article_url("https://orda.kz/maybe-valid/"))
-
-    def test_reachable_article_url_falls_back_when_head_not_allowed(self) -> None:
-        head_response = Mock(status_code=405)
-        get_response = Mock(status_code=200)
-        with (
-            patch.object(crawling_table.requests, "head", return_value=head_response),
-            patch.object(crawling_table.requests, "get", return_value=get_response),
-        ):
-            self.assertTrue(crawling_table._reachable_article_url("https://orda.kz/head-disabled/"))
-        get_response.close.assert_called_once()
-
-    def test_reachable_rows_uses_table_worker_pool(self) -> None:
+    def test_crawling_table_skips_reachability_prefetch(self) -> None:
         class FakeExecutor:
             seen_workers: list[int] = []
 
@@ -40,16 +21,25 @@ class OrdaTableTest(unittest.TestCase):
             def __exit__(self, exc_type, exc, tb) -> None:
                 return None
 
-            def map(self, fn, urls):
-                return [url.endswith("/keep/") for url in urls]
-
-        rows = [
-            {"url": "https://orda.kz/drop/"},
-            {"url": "https://orda.kz/keep/"},
-        ]
+            def map(self, fn, pages):
+                return [
+                    [
+                        {
+                            "url": "https://orda.kz/keep/",
+                            "date": "2024-01-01",
+                            "time": "2024-01-01T00:00:00+06:00",
+                            "title": "",
+                            "author": "",
+                        }
+                    ],
+                    None,
+                    None,
+                    None,
+                ]
 
         with patch.object(crawling_table, "ThreadPoolExecutor", FakeExecutor):
-            self.assertEqual(crawling_table._reachable_rows(rows), [rows[1]])
+            rows = crawling_table.crawling_table("ru")
+        self.assertEqual([row["url"] for row in rows], ["https://orda.kz/keep/"])
         self.assertEqual(FakeExecutor.seen_workers, [10])
 
     def test_staged_urls_reads_runner_env_path(self) -> None:

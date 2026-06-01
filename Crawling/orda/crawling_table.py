@@ -7,9 +7,6 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 
-import requests
-
-from Basement.config import get_root_config
 from Basement.http import get_text
 from Basement.parsing import in_range
 from Basement.sql_tmp_db import read_tmp_urls
@@ -26,7 +23,6 @@ BAD_PATH_MARKERS = (
 BAD_PATHS = {
     "/ruhani-zha%d2%a3%d2%93yru-czentr-molodezh-i-penthaus-kak-skolotil-sostoyanie-otecz-bajbeka-chast-3/",
 }
-_HEADERS = {"User-Agent": get_root_config("crawling", "user_agent", default="NCCUCorpusCrawler/2.0")}
 TABLE_WORKERS = 10
 
 
@@ -66,25 +62,6 @@ def _usable_article_url(url: str, base: str) -> bool:
     if path in BAD_PATHS:
         return False
     return not any(marker in path for marker in BAD_PATH_MARKERS)
-
-
-def _reachable_article_url(url: str) -> bool:
-    root_timeout = float(get_root_config("crawling", "request_timeout", default=20))
-    timeout = float(os.environ.get("NCCU_ORDA_REACHABILITY_TIMEOUT", min(root_timeout, 5)))
-    try:
-        response = requests.head(url, headers=_HEADERS, timeout=(timeout, timeout), allow_redirects=True)
-        if response.status_code == 405:
-            response = requests.get(url, headers=_HEADERS, timeout=(timeout, timeout), stream=True)
-            response.close()
-    except requests.RequestException:
-        return True
-    return response.status_code not in {404, 410}
-
-
-def _reachable_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
-    with ThreadPoolExecutor(max_workers=TABLE_WORKERS) as executor:
-        reachable = executor.map(_reachable_article_url, [row["url"] for row in rows])
-    return [row for row, ok in zip(rows, reachable) if ok]
 
 
 def _staged_urls() -> set[str]:
@@ -148,7 +125,7 @@ def crawling_table(
                     "time": item.get("time", ""),
                     "author": item.get("author", ""),
                 })
-            for row in _reachable_rows(candidates):
+            for row in candidates:
                 seen.add(row["url"])
                 rows.append(row)
                 if limit and len(rows) >= limit:
