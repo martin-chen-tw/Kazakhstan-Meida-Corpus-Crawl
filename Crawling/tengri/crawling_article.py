@@ -8,8 +8,10 @@ def _author(html: str) -> str:
     author = meta_content(html, ["author", "article:author"])
     if author:
         return author
-    patterns = [r'(?is)<[^>]+class=["\'][^"\']*(?:author|article-author)[^"\']*["\'][^>]*>(.*?)</[^>]+>',
-                r'(?is)(?:?????|Author)\s*:?\s*</?[^>]*>\s*([^<\n]+)']
+    patterns = [
+        r'(?is)<[^>]+class=["\'][^"\']*(?:author|article-author)[^"\']*["\'][^>]*>(.*?)</[^>]+>',
+        r'(?is)\bAuthor\s*:?\s*(?:</?[^>]*>\s*)?([^<\n]+)',
+    ]
     for pat in patterns:
         m = re.search(pat, html)
         if m:
