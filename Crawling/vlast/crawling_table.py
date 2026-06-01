@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
@@ -30,11 +31,49 @@ def _links(html: str, base: str, lang: str) -> list[str]:
 
 def _last_page(html: str, section: str) -> int:
     match = re.search(rf'href="/{re.escape(section)}/(\d+)/\?archive=1"\s+rel="last"', html)
-    return int(match.group(1)) if match else 1
+    if match:
+        return int(match.group(1))
+    pages = [
+        int(page)
+        for page in re.findall(rf'href="/{re.escape(section)}/(\d+)/\?archive=1"', html)
+    ]
+    return max(pages) if pages else 1
 
 
 def _get(url: str) -> tuple[str, int]:
     headers = {"User-Agent": "Mozilla/5.0", "Connection": "close"}
+    timeout = float(os.environ.get("NCCU_VLAST_REQUEST_TIMEOUT", min(float(get_root_config("crawling", "request_timeout", default=20)), 8)))
+    try:
+        proc = subprocess.run(
+            [
+                "curl",
+                "-L",
+                "--silent",
+                "--show-error",
+                "--compressed",
+                "--connect-timeout",
+                str(max(1, min(timeout, 5))),
+                "--max-time",
+                str(max(1, timeout)),
+                "--user-agent",
+                headers["User-Agent"],
+                "--header",
+                "Connection: close",
+                "--write-out",
+                "\n%{http_code}",
+                url,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout + 2,
+        )
+        if proc.stdout:
+            body, _, code = proc.stdout.rpartition("\n")
+            if code.isdigit():
+                return body, int(code)
+    except Exception:
+        pass
     with requests.get(url, headers=headers, timeout=10) as response:
         response.encoding = response.apparent_encoding
         return response.text, response.status_code

@@ -26,6 +26,15 @@ class VlastTableTest(unittest.TestCase):
 
         self.assertEqual(vlast_table._last_page(html, "vlast-qazaqsha"), 27)
 
+    def test_last_page_reads_plain_pagination_links(self) -> None:
+        html = """
+        <a href="/vlast-qazaqsha/6/?archive=1">6</a>
+        <a href="/vlast-qazaqsha/7/?archive=1">7</a>
+        <a href="/vlast-qazaqsha/8/?archive=1">Next</a>
+        """
+
+        self.assertEqual(vlast_table._last_page(html, "vlast-qazaqsha"), 8)
+
     def test_zero_limit_means_unlimited_not_empty(self) -> None:
         html = """
         <link href="/english/?archive=1" rel="self">
