@@ -46,6 +46,18 @@ class ZakonTableTest(unittest.TestCase):
         self.assertEqual(kz["url"], "https://kaz.zakon.kz/vlast-kazakhstana/7654321-kazakh-title.html")
         self.assertEqual(kz["date"], "2026-05-30")
 
+    def test_russian_month_date_in_anchor_context(self) -> None:
+        page = """
+        <a href="/sobytiia/6504235-kak-ubedit-rebenka-igrat-vo-dvore--udachnyy-opyt.html">
+          Как убедить ребенка играть во дворе - удачный опыт
+          <span>09:41, 15 января 2026</span>
+        </a>
+        """
+
+        row = zakon_table._items_from_page_html(page, "ru")[0]
+
+        self.assertEqual(row["date"], "2026-01-15")
+
     def test_page_cache_avoids_duplicate_fetches(self) -> None:
         with patch.object(zakon_table, "_bounded_get_text", return_value=RU_PAGE) as get_text:
             self.assertEqual(len(zakon_table._items_from_page("ru", 1)), 1)

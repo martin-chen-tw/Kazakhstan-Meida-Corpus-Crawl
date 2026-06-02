@@ -22,6 +22,20 @@ CONSECUTIVE_EMPTY_STOP = 2
 CONSECUTIVE_DUPLICATE_STOP = 2
 TABLE_WORKERS = 10
 _PAGE_CACHE: dict[tuple[str, int], str] = {}
+MONTHS = {
+    "января": 1,
+    "февраля": 2,
+    "марта": 3,
+    "апреля": 4,
+    "мая": 5,
+    "июня": 6,
+    "июля": 7,
+    "августа": 8,
+    "сентября": 9,
+    "октября": 10,
+    "ноября": 11,
+    "декабря": 12,
+}
 
 
 def _load_more_url(lang: str, page: int) -> str:
@@ -167,6 +181,12 @@ def _first_date(text: str) -> str:
         if groups[0].startswith("20"):
             return _valid_day("-".join(groups))
         return _valid_day(f"{groups[2]}-{groups[1]}-{groups[0]}")
+    month_match = re.search(r"\b(\d{1,2})\s+([А-Яа-яЁё]+)\s+(20\d{2})\b", text, re.IGNORECASE)
+    if month_match:
+        day, month_name, year = month_match.groups()
+        month = MONTHS.get(month_name.lower())
+        if month:
+            return _valid_day(f"{year}-{month:02d}-{int(day):02d}")
     return ""
 
 
