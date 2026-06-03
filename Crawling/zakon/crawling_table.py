@@ -146,7 +146,7 @@ def _items_from_page_html(html: str, lang: str) -> list[dict[str, str]]:
             continue
         seen.add(url)
         context = html[max(0, match.start() - 500): min(len(html), match.end() + 500)]
-        title = clean_text(strip_tags(label_html))
+        title = _clean_title(label_html)
         raw_date = _first_date(context)
         rows.append({
             "url": url,
@@ -155,6 +155,35 @@ def _items_from_page_html(html: str, lang: str) -> list[dict[str, str]]:
             "time": "",
         })
     return rows
+
+
+def _clean_title(label_html: str) -> str:
+    text = strip_tags(label_html).replace("<>", "\n")
+    candidates = []
+    for raw_line in text.splitlines():
+        line = clean_text(raw_line)
+        if not line or _looks_like_listing_meta(line):
+            continue
+        line = _strip_listing_meta_suffix(line)
+        if line:
+            candidates.append(line)
+    return candidates[0] if candidates else clean_text(strip_tags(label_html))
+
+
+def _looks_like_listing_meta(text: str) -> bool:
+    return bool(re.fullmatch(r"\d{1,2}:\d{2},?\s*.*", text))
+
+
+def _strip_listing_meta_suffix(text: str) -> str:
+    month_names = "|".join(re.escape(month) for month in MONTHS)
+    patterns = [
+        rf"\s+\d{{1,2}}:\d{{2}},\s*\d{{1,2}}\s+(?:{month_names})\s+20\d{{2}}\s*$",
+        r"\s+\d{1,2}:\d{2},\s*\d{1,2}[.]\d{1,2}[.]20\d{2}\s*$",
+    ]
+    cleaned = text
+    for pattern in patterns:
+        cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
+    return clean_text(cleaned)
 
 
 def _items_from_page(lang: str, page: int) -> list[dict[str, str]]:

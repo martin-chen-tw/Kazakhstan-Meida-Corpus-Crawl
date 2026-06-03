@@ -19,6 +19,10 @@ def _parse_date(s: str | None) -> date | None:
 def _site_module(newspaper: str, mod: str):
     return importlib.import_module(f'Crawling.{newspaper}.{mod}')
 
+
+def _metadata_title_should_replace(existing: str) -> bool:
+    return not existing or "<>" in existing or "\n<>" in existing
+
 def _download_row(newspaper: str, meta: ArticleMeta) -> dict[str, str]:
     article = _site_module(newspaper, 'crawling_article')
     try:
@@ -28,7 +32,7 @@ def _download_row(newspaper: str, meta: ArticleMeta) -> dict[str, str]:
     if isinstance(result, dict):
         if result.get('author') and not meta.author:
             meta.author = result['author']
-        if result.get('title') and not meta.title:
+        if result.get('title') and _metadata_title_should_replace(meta.title):
             meta.title = result['title']
         if result.get('date') and not meta.date:
             meta.date = result['date']
