@@ -1,0 +1,28 @@
+{
+  "metadata": [
+    {
+      "newspaper": "zakon",
+      "lang": "ru",
+      "save_path": "zakon_ru/",
+      "base_filename": "zakon_ru_Stage1_",
+      "base_url": "https://www.zakon.kz/archive/",
+      "article_base_url": "https://www.zakon.kz",
+      "default_start_date": "2002-11-01",
+      "sitemaps": [
+        "https://www.zakon.kz/sitemap.xml"
+      ]
+    },
+    {
+      "newspaper": "zakon",
+      "lang": "kz",
+      "save_path": "zakon_kz/",
+      "base_filename": "zakon_kz_Stage1_",
+      "base_url": "https://kaz.zakon.kz/archive/",
+      "article_base_url": "https://kaz.zakon.kz",
+      "default_start_date": "2020-01-01",
+      "sitemaps": [
+        "https://kaz.zakon.kz/sitemap.xml"
+      ]
+    }
+  ]
+}

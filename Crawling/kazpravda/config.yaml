@@ -1,0 +1,16 @@
+{
+  "metadata": [
+    {
+      "newspaper": "kazpravda",
+      "lang": "ru",
+      "save_path": "kazpravda_ru/",
+      "base_filename": "kazpravda_ru_Stage1_",
+      "base_url": "https://kazpravda.kz/archive/?date=",
+      "article_base_url": "https://kazpravda.kz",
+      "default_start_date": "2013-11-12",
+      "sitemaps": [
+        "https://kazpravda.kz/sitemap.xml"
+      ]
+    }
+  ]
+}

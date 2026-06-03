@@ -1,0 +1,28 @@
+{
+  "metadata": [
+    {
+      "newspaper": "khabar",
+      "lang": "ru",
+      "save_path": "khabar_ru/",
+      "base_filename": "khabar_ru_Stage1_",
+      "base_url": "https://khabar.kz/ru/news?start=",
+      "article_base_url": "https://khabar.kz",
+      "default_start_date": "2014-12-29",
+      "sitemaps": [
+        "https://khabar.kz/sitemap.xml"
+      ]
+    },
+    {
+      "newspaper": "khabar",
+      "lang": "kz",
+      "save_path": "khabar_kz/",
+      "base_filename": "khabar_kz_Stage1_",
+      "base_url": "https://khabar.kz/kk/news?start=",
+      "article_base_url": "https://khabar.kz",
+      "default_start_date": "2014-11-25",
+      "sitemaps": [
+        "https://khabar.kz/sitemap.xml"
+      ]
+    }
+  ]
+}

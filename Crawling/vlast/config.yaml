@@ -1,0 +1,40 @@
+{
+  "metadata": [
+    {
+      "newspaper": "vlast",
+      "lang": "ru",
+      "save_path": "vlast_ru/",
+      "base_filename": "vlast_ru_Stage1_",
+      "base_url": "https://vlast.kz/",
+      "article_base_url": "https://vlast.kz",
+      "default_start_date": "2000-01-01",
+      "sitemaps": [
+        "https://vlast.kz/sitemap.xml"
+      ]
+    },
+    {
+      "newspaper": "vlast",
+      "lang": "kz",
+      "save_path": "vlast_kz/",
+      "base_filename": "vlast_kz_Stage1_",
+      "base_url": "https://vlast.kz/kz/",
+      "article_base_url": "https://vlast.kz",
+      "default_start_date": "2000-01-01",
+      "sitemaps": [
+        "https://vlast.kz/sitemap.xml"
+      ]
+    },
+    {
+      "newspaper": "vlast",
+      "lang": "en",
+      "save_path": "vlast_en/",
+      "base_filename": "vlast_en_Stage1_",
+      "base_url": "https://vlast.kz/en/",
+      "article_base_url": "https://vlast.kz",
+      "default_start_date": "2000-01-01",
+      "sitemaps": [
+        "https://vlast.kz/sitemap.xml"
+      ]
+    }
+  ]
+}

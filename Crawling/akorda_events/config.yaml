@@ -1,0 +1,34 @@
+{
+  "metadata": [
+    {
+      "newspaper": "akorda_events",
+      "lang": "ru",
+      "save_path": "akorda_events_ru/",
+      "base_filename": "akorda_events_ru_Stage1_",
+      "base_url": "https://akorda.kz/ru/events?page=",
+      "article_base_url": "https://akorda.kz",
+      "default_start_date": "2005-12-05",
+      "sitemaps": []
+    },
+    {
+      "newspaper": "akorda_events",
+      "lang": "en",
+      "save_path": "akorda_events_en/",
+      "base_filename": "akorda_events_en_Stage1_",
+      "base_url": "https://akorda.kz/en/events?page=",
+      "article_base_url": "https://akorda.kz",
+      "default_start_date": "2007-07-23",
+      "sitemaps": []
+    },
+    {
+      "newspaper": "akorda_events",
+      "lang": "kz",
+      "save_path": "akorda_events_kz/",
+      "base_filename": "akorda_events_kz_Stage1_",
+      "base_url": "https://akorda.kz/kz/events?page=",
+      "article_base_url": "https://akorda.kz",
+      "default_start_date": "2005-12-05",
+      "sitemaps": []
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "metadata": [
+    {
+      "newspaper": "nur",
+      "lang": "ru",
+      "save_path": "nur_ru/",
+      "base_filename": "nur_ru_Stage1_",
+      "base_url": "https://www.nur.kz/api/latest/?cursor=",
+      "article_base_url": "https://www.nur.kz",
+      "default_start_date": "2009-02-10",
+      "sitemaps": [
+        "https://www.nur.kz/sitemap.xml"
+      ]
+    },
+    {
+      "newspaper": "nur",
+      "lang": "kz",
+      "save_path": "nur_kz/",
+      "base_filename": "nur_kz_Stage1_",
+      "base_url": "https://kaz.nur.kz/api/latest/?cursor=",
+      "article_base_url": "https://kaz.nur.kz",
+      "default_start_date": "2010-09-06",
+      "sitemaps": [
+        "https://kaz.nur.kz/sitemap.xml"
+      ]
+    }
+  ]
+}

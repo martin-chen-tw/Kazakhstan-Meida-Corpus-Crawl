@@ -1,0 +1,6 @@
+requests
+pyyaml
+yarl
+beautifulsoup4
+openpyxl
+pandas

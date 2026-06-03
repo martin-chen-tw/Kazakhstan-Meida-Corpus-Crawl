@@ -1,0 +1,40 @@
+{
+  "metadata": [
+    {
+      "newspaper": "tengri",
+      "lang": "ru",
+      "save_path": "tengri_ru/",
+      "base_filename": "tengri_ru_Stage1_",
+      "base_url": "https://tengrinews.kz/news/",
+      "article_base_url": "https://tengrinews.kz",
+      "default_start_date": "2008-12-10",
+      "sitemaps": [
+        "https://tengrinews.kz/sitemap-index.xml"
+      ]
+    },
+    {
+      "newspaper": "tengri",
+      "lang": "en",
+      "save_path": "tengri_en/",
+      "base_filename": "tengri_en_Stage1_",
+      "base_url": "https://en.tengrinews.kz/news/",
+      "article_base_url": "https://en.tengrinews.kz",
+      "default_start_date": "2011-03-02",
+      "sitemaps": [
+        "https://en.tengrinews.kz/en-sitemap-index.xml"
+      ]
+    },
+    {
+      "newspaper": "tengri",
+      "lang": "kz",
+      "save_path": "tengri_kz/",
+      "base_filename": "tengri_kz_Stage1_",
+      "base_url": "https://kaz.tengrinews.kz/news/",
+      "article_base_url": "https://kaz.tengrinews.kz",
+      "default_start_date": "2014-01-20",
+      "sitemaps": [
+        "https://kaz.tengrinews.kz/kk-sitemap-index.xml"
+      ]
+    }
+  ]
+}

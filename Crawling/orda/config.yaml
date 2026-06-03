@@ -1,0 +1,40 @@
+{
+  "metadata": [
+    {
+      "newspaper": "orda",
+      "lang": "ru",
+      "save_path": "orda_ru/",
+      "base_filename": "orda_ru_Stage1_",
+      "base_url": "https://orda.kz/",
+      "article_base_url": "https://orda.kz",
+      "default_start_date": "2020-11-11",
+      "sitemaps": [
+        "https://orda.kz/sitemap.xml"
+      ]
+    },
+    {
+      "newspaper": "orda",
+      "lang": "en",
+      "save_path": "orda_en/",
+      "base_filename": "orda_en_Stage1_",
+      "base_url": "https://en.orda.kz/",
+      "article_base_url": "https://en.orda.kz",
+      "default_start_date": "2022-10-20",
+      "sitemaps": [
+        "https://en.orda.kz/sitemap.xml"
+      ]
+    },
+    {
+      "newspaper": "orda",
+      "lang": "kz",
+      "save_path": "orda_kz/",
+      "base_filename": "orda_kz_Stage1_",
+      "base_url": "https://kaz.orda.kz/",
+      "article_base_url": "https://kaz.orda.kz",
+      "default_start_date": "2020-11-11",
+      "sitemaps": [
+        "https://kaz.orda.kz/sitemap.xml"
+      ]
+    }
+  ]
+}

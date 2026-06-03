@@ -1,0 +1,17 @@
+{
+  "db_root_path": "./output",
+  "crawling": {
+    "crawling_per_date": 300,
+    "request_timeout": 20,
+    "user_agent": "Mozilla/5.0 (compatible; NCCUCorpusCrawler/2.0)"
+  },
+  "extracting": {
+    "save_xlsx_file_per_data": 1000,
+    "pending_flush_rows": 50
+  },
+  "concurrency": {
+    "threads_per_newspaper": 10
+  },
+  "colab": {"prefix_save_path": ""},
+  "linux": {"prefix_save_path": ""}
+}

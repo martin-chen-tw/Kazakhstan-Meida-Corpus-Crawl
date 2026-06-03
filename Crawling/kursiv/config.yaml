@@ -1,0 +1,41 @@
+{
+  "metadata": [
+    {
+      "newspaper": "kursiv",
+      "lang": "ru",
+      "save_path": "kursiv_ru/",
+      "base_filename": "kursiv_ru_Stage1_",
+      "base_url": "https://kz.kursiv.media/",
+      "article_base_url": "https://kz.kursiv.media",
+      "default_start_date": "2000-01-01",
+      "sitemaps": [
+        "https://kz.kursiv.media/sitemap.xml",
+        "https://kursiv.kz/sitemap.xml"
+      ]
+    },
+    {
+      "newspaper": "kursiv",
+      "lang": "kz",
+      "save_path": "kursiv_kz/",
+      "base_filename": "kursiv_kz_Stage1_",
+      "base_url": "https://kz.kursiv.media/kk/",
+      "article_base_url": "https://kz.kursiv.media",
+      "default_start_date": "2000-01-01",
+      "sitemaps": [
+        "https://kz.kursiv.media/sitemap.xml"
+      ]
+    },
+    {
+      "newspaper": "kursiv",
+      "lang": "en",
+      "save_path": "kursiv_en/",
+      "base_filename": "kursiv_en_Stage1_",
+      "base_url": "https://kz.kursiv.media/en/",
+      "article_base_url": "https://kz.kursiv.media",
+      "default_start_date": "2000-01-01",
+      "sitemaps": [
+        "https://kz.kursiv.media/sitemap.xml"
+      ]
+    }
+  ]
+}

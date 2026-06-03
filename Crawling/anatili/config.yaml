@@ -1,0 +1,28 @@
+{
+  "metadata": [
+    {
+      "newspaper": "anatili",
+      "lang": "kz",
+      "save_path": "anatili_kz/",
+      "base_filename": "anatili_kz_Stage1_",
+      "base_url": "https://anatili.kazgazeta.kz/",
+      "article_base_url": "https://anatili.kazgazeta.kz",
+      "default_start_date": "2000-01-01",
+      "sitemaps": [
+        "https://anatili.kazgazeta.kz/sitemap.xml"
+      ]
+    },
+    {
+      "newspaper": "anatili",
+      "lang": "qazaq",
+      "save_path": "anatili_qazaq/",
+      "base_filename": "anatili_qazaq_Stage1_",
+      "base_url": "https://anatili.kazgazeta.kz/?ln=lat",
+      "article_base_url": "https://anatili.kazgazeta.kz",
+      "default_start_date": "2000-01-01",
+      "sitemaps": [
+        "https://anatili.kazgazeta.kz/sitemap.xml"
+      ]
+    }
+  ]
+}

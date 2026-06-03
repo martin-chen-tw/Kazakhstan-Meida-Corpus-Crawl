@@ -1,0 +1,52 @@
+{
+  "metadata": [
+    {
+      "newspaper": "egemen",
+      "lang": "kz",
+      "save_path": "egemen_kz/",
+      "base_filename": "egemen_kz_Stage1_",
+      "base_url": "https://egemen.kz/",
+      "article_base_url": "https://egemen.kz",
+      "default_start_date": "2000-01-01",
+      "sitemaps": [
+        "https://egemen.kz/sitemap.xml"
+      ]
+    },
+    {
+      "newspaper": "egemen",
+      "lang": "qazaq",
+      "save_path": "egemen_qazaq/",
+      "base_filename": "egemen_qazaq_Stage1_",
+      "base_url": "https://ar.egemen.kz/",
+      "article_base_url": "https://ar.egemen.kz",
+      "default_start_date": "2000-01-01",
+      "sitemaps": [
+        "https://ar.egemen.kz/sitemap.xml"
+      ]
+    },
+    {
+      "newspaper": "egemen",
+      "lang": "ru",
+      "save_path": "egemen_ru/",
+      "base_filename": "egemen_ru_Stage1_",
+      "base_url": "https://ru.egemen.kz/",
+      "article_base_url": "https://ru.egemen.kz",
+      "default_start_date": "2000-01-01",
+      "sitemaps": [
+        "https://ru.egemen.kz/sitemap.xml"
+      ]
+    },
+    {
+      "newspaper": "egemen",
+      "lang": "en",
+      "save_path": "egemen_en/",
+      "base_filename": "egemen_en_Stage1_",
+      "base_url": "https://en.egemen.kz/",
+      "article_base_url": "https://en.egemen.kz",
+      "default_start_date": "2000-01-01",
+      "sitemaps": [
+        "https://en.egemen.kz/sitemap.xml"
+      ]
+    }
+  ]
+}

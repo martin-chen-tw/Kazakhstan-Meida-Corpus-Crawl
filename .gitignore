@@ -1,0 +1,8 @@
+.omx/
+data_v2/
+tasks/
+tests/
+.codex/
+AGENTS.md
+__pycache__/
+*.py[cod]

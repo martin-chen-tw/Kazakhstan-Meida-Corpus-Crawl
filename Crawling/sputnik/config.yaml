@@ -1,0 +1,28 @@
+{
+  "metadata": [
+    {
+      "newspaper": "sputnik",
+      "lang": "ru",
+      "save_path": "sputnik_ru/",
+      "base_filename": "sputnik_ru_Stage1_",
+      "base_url": "https://ru.sputnik.kz/",
+      "article_base_url": "https://ru.sputnik.kz",
+      "default_start_date": "2016-06-01",
+      "sitemaps": [
+        "https://ru.sputnik.kz/sitemap.xml"
+      ]
+    },
+    {
+      "newspaper": "sputnik",
+      "lang": "kz",
+      "save_path": "sputnik_kz/",
+      "base_filename": "sputnik_kz_Stage1_",
+      "base_url": "https://sputnik.kz/",
+      "article_base_url": "https://sputnik.kz",
+      "default_start_date": "2016-06-01",
+      "sitemaps": [
+        "https://sputnik.kz/sitemap.xml"
+      ]
+    }
+  ]
+}
