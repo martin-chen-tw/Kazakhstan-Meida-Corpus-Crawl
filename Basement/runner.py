@@ -9,7 +9,7 @@ from .config import db_root_path, get_root_config, get_source_config, list_newsp
 from .excel_db import existing_files, merge_rows, read_rows, rewrite_rows, rewrite_sorted_rows
 from .models import ArticleMeta
 from .parsing import date_from_url, slug_title
-from .sql_tmp_db import append_tmp_rows, count_tmp_rows, ensure_tmp_db, iter_tmp_rows, read_tmp_rows, read_tmp_urls
+from .sql_tmp_db import append_tmp_rows, count_tmp_rows, ensure_tmp_db, iter_tmp_rows, read_tmp_rows, read_tmp_urls, reset_tmp_db
 
 STREAM_REWRITE_ROW_THRESHOLD = 10000
 
@@ -120,6 +120,8 @@ def run_source(newspaper: str, lang: str, mode: str, start_date: date | None, en
     if limit: metas = metas[:limit]
     if dry_run:
         return {'newspaper': newspaper, 'lang': lang, 'listed': len(metas), 'written': [], 'dry_run': True}
+    if mode == 'rebuild':
+        tmp_path = reset_tmp_db(cfg, root)
     flush_rows = max(1, int(get_root_config('extracting', 'pending_flush_rows', default=50) or 50))
     tmp_path = tmp_path or ensure_tmp_db(cfg, root)
     staged_urls = read_tmp_urls(tmp_path)
