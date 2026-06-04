@@ -21,6 +21,8 @@ def reset_tmp_db(cfg: SourceConfig, db_root: Path | None = None) -> Path:
     path = tmp_db_path(cfg, db_root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.unlink(missing_ok=True)
+    for suffix in ("-journal", "-wal", "-shm"):
+        path.with_name(path.name + suffix).unlink(missing_ok=True)
     return ensure_tmp_db(cfg, db_root)
 
 
