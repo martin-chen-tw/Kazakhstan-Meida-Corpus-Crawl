@@ -39,6 +39,31 @@ def _items(xml_text: str) -> list[dict[str, str]]:
     return rows
 
 
+def _sample_items(items: list[dict[str, str]]) -> list[dict[str, str]]:
+    if not items:
+        return []
+    indexes = {0, len(items) // 4, len(items) // 2, (len(items) * 3) // 4, len(items) - 1}
+    return [items[i] for i in sorted(indexes)]
+
+
+def _looks_like_broken_sitemap(items: list[dict[str, str]], lang: str) -> bool:
+    sampled = _sample_items(items)
+    if len(sampled) < 3:
+        return False
+    checked = 0
+    for item in sampled:
+        try:
+            get_text(item["url"], retries=0, timeout=10)
+            return False
+        except Exception as exc:
+            text = str(exc)
+            if "404 Client Error" not in text and "status code: 404" not in text:
+                return False
+            checked += 1
+    print(f"[WARN] egemen {lang}: sitemap article URLs sampled as 404; skipping broken sitemap list")
+    return checked == len(sampled)
+
+
 def crawling_table(
     lang: str,
     start_date: date | None = None,
@@ -50,6 +75,7 @@ def crawling_table(
     host = cfg.article_base_url.rstrip("/")
     rows: list[dict[str, str]] = []
     seen: set[str] = set()
+    candidates = []
     for item in _items(get_text(cfg.sitemaps[0], retries=1, timeout=20)):
         url = item["url"]
         if not url.startswith(f"{host}/article/") or url in seen:
@@ -57,6 +83,13 @@ def crawling_table(
         if not in_range(item.get("date", ""), start_date, end_date):
             continue
         seen.add(url)
+        candidates.append(item)
+        if limit and len(candidates) >= limit:
+            break
+    if _looks_like_broken_sitemap(candidates, lang):
+        return rows if with_metadata else []
+    for item in candidates:
+        url = item["url"]
         rows.append({"newspaper": NEWSPAPER, "lang": lang, "url": url, "title": "", "date": item.get("date", ""), "time": item.get("time", ""), "author": ""})
         if limit and len(rows) >= limit:
             break
