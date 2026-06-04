@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from Basement.http import get_text, strip_tags
-from Basement.parsing import clean_text
+from Basement.parsing import clean_text, description_from_html
 
 
 def _first(pattern: str, html: str) -> str:
@@ -24,6 +24,8 @@ def _body(html: str) -> str:
     lines = []
     for line in text.splitlines():
         line = line.strip()
+        if not lines and re.fullmatch(r"\d+", line):
+            continue
         if line and not re.match(r"^\d{2}\.\d{2}\.20\d{2}", line) and not line.startswith("#"):
             lines.append(line)
     return clean_text("\n".join(lines))
@@ -31,7 +33,8 @@ def _body(html: str) -> str:
 
 def crawling_article(url: str, with_metadata: bool = False) -> str | dict[str, str]:
     html = get_text(str(url), retries=1, timeout=15)
-    body = _body(html)
+    title = _first(r'<h1[^>]+itemprop=["\']name["\'][^>]*>(.*?)</h1>', html)
+    body = _body(html) or description_from_html(html) or title
     if not with_metadata:
         return body
     date_text = _first(r'<li[^>]*class=["\'][^"\']*border-gredient-left[^"\']*["\'][^>]*>.*?(\d{2}\.\d{2}\.20\d{2}[^<]*)</li>', html)
@@ -39,6 +42,6 @@ def crawling_article(url: str, with_metadata: bool = False) -> str | dict[str, s
         "body": body,
         "rowdata": html,
         "author": "",
-        "title": _first(r'<h1[^>]+itemprop=["\']name["\'][^>]*>(.*?)</h1>', html),
+        "title": title,
         "date": _date(date_text),
     }

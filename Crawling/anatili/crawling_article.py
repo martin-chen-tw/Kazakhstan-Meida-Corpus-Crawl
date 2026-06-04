@@ -14,12 +14,14 @@ def _first(pattern: str, html: str) -> str:
 
 
 def _body(html: str) -> str:
-    marker = re.search(r'(?is)<h1[^>]+class=["\'][^"\']*title[^"\']*["\'][^>]*>.*?</h1>', html)
-    if not marker:
+    article = re.search(r'(?is)<article[^>]+class=["\'][^"\']*article-comment[^"\']*["\'][^>]*>(.*?)</article>', html)
+    if not article:
         return ""
-    start = marker.end()
-    end = html.find('<div class="right', start)
-    chunk = html[start:end if end != -1 else len(html)]
+    chunk = article.group(1)
+    marker = re.search(r'(?is)<h1[^>]+class=["\'][^"\']*title[^"\']*["\'][^>]*>.*?</h1>', chunk)
+    if marker:
+        chunk = chunk[marker.end():]
+    chunk = re.split(r'(?is)<div[^>]+class=["\'][^"\']*article-detail[^"\']*["\']', chunk, maxsplit=1)[0]
     paragraphs = re.findall(r"(?is)<p[^>]*>(.*?)</p>", chunk)
     text = "\n".join(strip_tags(p) for p in paragraphs) if paragraphs else strip_tags(chunk)
     lines = []
