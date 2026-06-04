@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterator
 
 from .config import db_root_path
+from .excel_db import EXCEL_CELL_TEXT_LIMIT, TRUNCATED_CELL_SUFFIX
 from .models import COLUMNS, SourceConfig
 
 SQLITE_TIMEOUT_SECONDS = 60
@@ -54,25 +55,25 @@ def read_tmp_rows(path: Path) -> list[dict[str, str]]:
     return list(iter_tmp_rows(path))
 
 
-def iter_tmp_rows(path: Path, *, sorted_for_output: bool = False) -> Iterator[dict[str, str]]:
+def iter_tmp_rows(path: Path, *, sorted_for_output: bool = False, xlsx_compatible: bool = False) -> Iterator[dict[str, str]]:
     if not path.exists():
         return
     con = _connect(path)
     try:
         _ensure_schema(con)
-        quoted_cols = ", ".join(_quote(col) for col in COLUMNS)
+        selected_cols = ", ".join(_select_column(col, xlsx_compatible) for col in COLUMNS)
         if sorted_for_output:
             keys = []
             for row_id, row_date, row_time in con.execute('SELECT id, "date", "time" FROM rows'):
                 keys.append((_sort_date_key(row_date), _sort_time_key(row_date, row_time), row_id))
             for _, _, row_id in sorted(keys):
-                row = con.execute(f"SELECT {quoted_cols} FROM rows WHERE id = ?", (row_id,)).fetchone()
+                row = con.execute(f"SELECT {selected_cols} FROM rows WHERE id = ?", (row_id,)).fetchone()
                 if row is not None:
                     yield dict(zip(COLUMNS, row))
             return
         else:
             order_by = "id"
-        for row in con.execute(f"SELECT {quoted_cols} FROM rows ORDER BY {order_by}"):
+        for row in con.execute(f"SELECT {selected_cols} FROM rows ORDER BY {order_by}"):
             yield dict(zip(COLUMNS, row))
     finally:
         con.close()
@@ -120,6 +121,22 @@ def _connect(path: Path) -> sqlite3.Connection:
 
 def _quote(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
+
+
+def _select_column(col: str, xlsx_compatible: bool) -> str:
+    if col != "rowdata" or not xlsx_compatible:
+        return _quote(col)
+    keep = EXCEL_CELL_TEXT_LIMIT - len(TRUNCATED_CELL_SUFFIX)
+    suffix = _quote_literal(TRUNCATED_CELL_SUFFIX)
+    return (
+        f"CASE WHEN substr({_quote(col)}, {keep + 1}, 1) != '' "
+        f"THEN substr({_quote(col)}, 1, {keep}) || {suffix} "
+        f"ELSE {_quote(col)} END AS {_quote(col)}"
+    )
+
+
+def _quote_literal(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
 
 
 def _sort_date_key(value: object) -> str:

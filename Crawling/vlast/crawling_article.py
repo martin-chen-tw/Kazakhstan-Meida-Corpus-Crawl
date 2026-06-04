@@ -30,6 +30,22 @@ def _published_time(html: str) -> str:
     return f"{hour:02d}:{minute:02d}:{second:02d}"
 
 
+def _clean_paragraph(raw: str) -> str:
+    text = strip_tags(raw)
+    lines = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or re.fullmatch(r"[<>\s]+", line):
+            continue
+        lines.append(line)
+    return clean_text("\n".join(lines))
+
+
+def _body(html: str) -> str:
+    paragraphs = [_clean_paragraph(p) for p in re.findall(r"(?is)<p[^>]*>(.*?)</p>", html)]
+    return clean_text("\n".join(p for p in paragraphs if len(p.strip()) > 30))
+
+
 def _get_article_html(url: str) -> str:
     try:
         proc = subprocess.run(
@@ -68,7 +84,6 @@ def crawling_article(url: str, with_metadata: bool = False) -> str | dict[str, s
     date = metadata_date(html, str(url))
     time = _published_time(html)
     author = meta_content(html, ["author", "article:author"])
-    paragraphs = [strip_tags(p) for p in re.findall(r"(?is)<p[^>]*>(.*?)</p>", html)]
-    body = clean_text("\n".join(p for p in paragraphs if len(p.strip()) > 30)) or description_from_html(html)
+    body = _body(html) or description_from_html(html)
     result = {"title": title, "date": date, "time": time, "author": author, "body": body, "rowdata": html}
     return result if with_metadata else body

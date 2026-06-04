@@ -11,6 +11,8 @@ from .models import COLUMNS, SourceConfig
 
 INVALID_XML_CHARS = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\uD800-\uDFFF\uFFFE\uFFFF]")
 XML_TEXT_CHUNK_SIZE = 4096
+EXCEL_CELL_TEXT_LIMIT = 32767
+TRUNCATED_CELL_SUFFIX = "\n...[truncated for xlsx]"
 try:
     LIBC = ctypes.CDLL("libc.so.6")
 except Exception:
@@ -23,15 +25,23 @@ def _col(n: int) -> str:
     return s
 
 def _xml_text(value: object) -> str:
-    return escape(INVALID_XML_CHARS.sub("", str(value or "")))
+    return escape(_excel_cell_text(value))
 
 
 def _write_xml_text(sheet, value: object) -> None:
-    text = str(value or "")
+    text = _excel_cell_text(value)
     for start in range(0, len(text), XML_TEXT_CHUNK_SIZE):
-        chunk = INVALID_XML_CHARS.sub("", text[start:start + XML_TEXT_CHUNK_SIZE])
+        chunk = text[start:start + XML_TEXT_CHUNK_SIZE]
         if chunk:
             sheet.write(escape(chunk).encode("utf-8"))
+
+
+def _excel_cell_text(value: object) -> str:
+    text = INVALID_XML_CHARS.sub("", str(value or ""))
+    if len(text) <= EXCEL_CELL_TEXT_LIMIT:
+        return text
+    keep = EXCEL_CELL_TEXT_LIMIT - len(TRUNCATED_CELL_SUFFIX)
+    return text[:keep] + TRUNCATED_CELL_SUFFIX
 
 def write_xlsx(path: Path, rows: list[dict[str, str]], columns: list[str] = COLUMNS) -> None:
     write_xlsx_stream(path, rows, columns)

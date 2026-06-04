@@ -78,7 +78,7 @@ def _write_pending_rows(cfg, rebuild: bool, db_root: Path | None, flush_rows: in
             flushes += 1
         row_count = count_tmp_rows(tmp_path)
         if rebuild or not paths or row_count >= STREAM_REWRITE_ROW_THRESHOLD:
-            paths = rewrite_sorted_rows(cfg, iter_tmp_rows(tmp_path, sorted_for_output=True), db_root)
+            paths = rewrite_sorted_rows(cfg, iter_tmp_rows(tmp_path, sorted_for_output=True, xlsx_compatible=True), db_root)
             rows_count = row_count
         else:
             new_rows = read_tmp_rows(tmp_path)
