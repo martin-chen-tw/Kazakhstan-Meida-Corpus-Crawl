@@ -1,10 +1,21 @@
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 
 from Basement.http import get_text, meta_content, strip_tags, title_from_html
+from Basement.config import get_root_config
 from Basement.parsing import clean_text, description_from_html, json_ld_value, metadata_date
+
+
+def _article_timeout() -> int:
+    configured = int(get_root_config("crawling", "request_timeout", default=20) or 20)
+    return int(os.environ.get("NCCU_VLAST_ARTICLE_TIMEOUT", max(configured, 45)))
+
+
+def _article_retries() -> int:
+    return int(os.environ.get("NCCU_VLAST_ARTICLE_RETRIES", 3))
 
 
 def _first(pattern: str, html: str) -> str:
@@ -47,6 +58,7 @@ def _body(html: str) -> str:
 
 
 def _get_article_html(url: str) -> str:
+    timeout = _article_timeout()
     try:
         proc = subprocess.run(
             [
@@ -56,9 +68,9 @@ def _get_article_html(url: str) -> str:
                 "--show-error",
                 "--compressed",
                 "--connect-timeout",
-                "5",
+                str(max(5, min(timeout // 3, 15))),
                 "--max-time",
-                "15",
+                str(timeout),
                 "--user-agent",
                 "Mozilla/5.0",
                 "--header",
@@ -69,13 +81,13 @@ def _get_article_html(url: str) -> str:
             check=False,
             capture_output=True,
             text=True,
-            timeout=17,
+            timeout=timeout + 3,
         )
         if proc.returncode == 0 and proc.stdout.strip():
             return proc.stdout
     except Exception:
         pass
-    return get_text(str(url), retries=1, timeout=12)
+    return get_text(str(url), retries=_article_retries(), timeout=timeout)
 
 
 def crawling_article(url: str, with_metadata: bool = False) -> str | dict[str, str]:
