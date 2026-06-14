@@ -10,8 +10,8 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 from Basement.config import get_root_config
+from Basement.final_sqlite_db import read_urls
 from Basement.parsing import in_range
-from Basement.sql_tmp_db import read_tmp_urls
 
 NEWSPAPER = __name__.split(".")[-2]
 SECTION = {"ru": "novosti", "kz": "vlast-qazaqsha", "en": "english"}
@@ -79,9 +79,9 @@ def _get(url: str) -> tuple[str, int]:
         return response.text, response.status_code
 
 
-def _staged_urls() -> set[str]:
-    path = os.environ.get("NCCU_STAGED_URL_DB")
-    return read_tmp_urls(Path(path)) if path else set()
+def _existing_urls() -> set[str]:
+    path = os.environ.get("NCCU_OUTPUT_URL_DB")
+    return read_urls(Path(path)) if path else set()
 
 
 def _page_links(page: int, first_html: str, first_status: int, base: str, section: str, lang: str) -> tuple[int, list[str]]:
@@ -108,7 +108,7 @@ def crawling_table(
     section = SECTION.get(lang, SECTION["ru"])
     base = f"https://vlast.kz/{section}/"
     rows: list[dict[str, str]] = []
-    seen: set[str] = _staged_urls()
+    seen: set[str] = _existing_urls()
     misses = 0
     workers = int(get_root_config("concurrency", "threads_per_newspaper", default=TABLE_WORKERS) or TABLE_WORKERS)
     first_url = f"{base}?archive=1"

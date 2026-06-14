@@ -7,9 +7,9 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 
+from Basement.final_sqlite_db import read_urls
 from Basement.http import get_text
 from Basement.parsing import in_range
-from Basement.sql_tmp_db import read_tmp_urls
 
 NEWSPAPER = __name__.split(".")[-2]
 HOST = {"ru": "https://orda.kz", "en": "https://en.orda.kz", "kz": "https://kaz.orda.kz"}
@@ -64,9 +64,9 @@ def _usable_article_url(url: str, base: str) -> bool:
     return not any(marker in path for marker in BAD_PATH_MARKERS)
 
 
-def _staged_urls() -> set[str]:
-    path = os.environ.get("NCCU_STAGED_URL_DB")
-    return read_tmp_urls(Path(path)) if path else set()
+def _existing_urls() -> set[str]:
+    path = os.environ.get("NCCU_OUTPUT_URL_DB")
+    return read_urls(Path(path)) if path else set()
 
 
 def _page_items(base: str, page: int) -> list[dict[str, str]] | None:
@@ -85,7 +85,7 @@ def crawling_table(
     base = HOST.get(lang, HOST["ru"])
     limit = int(os.environ.get("NCCU_CRAWL_LIMIT", "0") or 0)
     rows: list[dict[str, str]] = []
-    seen: set[str] = _staged_urls()
+    seen: set[str] = _existing_urls()
     misses = 0
 
     for batch_start in range(1, 1000, TABLE_WORKERS):

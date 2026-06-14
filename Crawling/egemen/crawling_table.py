@@ -11,6 +11,7 @@ from Basement.parsing import in_range
 
 
 NEWSPAPER = __name__.split(".")[-2]
+CANONICAL_ARTICLE_HOST = "https://egemen.kz"
 
 
 def _locs(xml_text: str) -> list[str]:
@@ -64,6 +65,14 @@ def _looks_like_broken_sitemap(items: list[dict[str, str]], lang: str) -> bool:
     return checked == len(sampled)
 
 
+def _canonical_article_url(url: str, lang: str) -> str:
+    if lang in {"ru", "en"}:
+        for host in ("https://ru.egemen.kz", "https://en.egemen.kz"):
+            if url.startswith(f"{host}/article/"):
+                return CANONICAL_ARTICLE_HOST + url[len(host):]
+    return url
+
+
 def crawling_table(
     lang: str,
     start_date: date | None = None,
@@ -77,12 +86,16 @@ def crawling_table(
     seen: set[str] = set()
     candidates = []
     for item in _items(get_text(cfg.sitemaps[0], retries=1, timeout=20)):
-        url = item["url"]
-        if not url.startswith(f"{host}/article/") or url in seen:
+        raw_url = item["url"]
+        if not raw_url.startswith(f"{host}/article/"):
+            continue
+        url = _canonical_article_url(raw_url, lang)
+        if url in seen:
             continue
         if not in_range(item.get("date", ""), start_date, end_date):
             continue
         seen.add(url)
+        item = {**item, "url": url}
         candidates.append(item)
         if limit and len(candidates) >= limit:
             break

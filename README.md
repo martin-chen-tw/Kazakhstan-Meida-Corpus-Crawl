@@ -1,6 +1,6 @@
 # kz_media crawler
 
-Crawler pipeline for Kazakhstani media sources. The project lists article URLs, downloads articles, stores staged rows in per-source SQLite tmp databases, and writes final Stage_1 xlsx files.
+Crawler pipeline for Kazakhstani media sources. The project lists article URLs, downloads articles, and writes each source/language pair directly to a final SQLite file.
 
 This is a breaking public schema release. New outputs include `rowdata`, the full raw HTML fetched for each article page.
 
@@ -38,10 +38,10 @@ python3 script/update_db.py --newspaper tengri --lang ru --limit 100 --db-root /
 
 Run every configured source/lang by scripting over `script/list_sources.py`; do not rely on `--all` when you need per-pair evidence.
 
-Check generated xlsx files:
+Check generated SQLite files:
 
 ```bash
-python3 script/error_check.py /home/martin/Desktop/kz_media/data_v2 --output /home/martin/Desktop/kz_media/data_v2/error_report.xlsx
+python3 script/error_check.py /home/martin/Desktop/kz_media/data_v2 --output /home/martin/Desktop/kz_media/data_v2/error_report.json
 ```
 
 `script/error_check.py` exits with:
@@ -56,15 +56,10 @@ For a root such as `/home/martin/Desktop/kz_media/data_v2`, output is written as
 
 ```text
 data_v2/
-  Stage_1/
-    tengri_ru/
-      tengri_ru_Stage1_1.xlsx
-      tengri_ru_Stage1_2.xlsx
-  sql_tmp/
-    tengri_ru.sql
+  tengri_ru.sqlite
 ```
 
-`update_db.py` and `rebuild.py` stage downloaded rows in `sql_tmp/<newspaper>_<lang>.sql`, then import those rows into the matching Stage_1 xlsx files.
+`update_db.py` and `rebuild.py` read and write the matching final `<newspaper>_<lang>.sqlite` file in the selected root. The configured `save_path` is not used for final SQLite placement.
 
 ## Row Schema
 
@@ -85,7 +80,7 @@ Field meanings:
 - `body`: cleaned article text.
 - `rowdata`: full raw HTML fetched for the article page.
 
-Older xlsx files without `rowdata` can still be read by the pipeline, but provenance-complete exports require rebuilding or updating rows so the raw HTML is fetched and stored.
+Legacy non-SQLite exports are no longer supported as an output or validation format. Provenance-complete exports require rebuilding or updating rows so the raw HTML is fetched and stored in final SQLite.
 
 ## Supported Sources
 
@@ -124,7 +119,7 @@ python3 script/update_db.py --newspaper <source> --lang <lang> --limit 100 --db-
 Then scan the generated files:
 
 ```bash
-python3 script/error_check.py /home/martin/Desktop/kz_media/data_v2 --output /home/martin/Desktop/kz_media/data_v2/error_report.xlsx
+python3 script/error_check.py /home/martin/Desktop/kz_media/data_v2 --output /home/martin/Desktop/kz_media/data_v2/error_report.json
 ```
 
 For release validation, keep a manifest at:
@@ -137,7 +132,7 @@ The manifest should record the source, language, command, status, timestamps, ou
 
 ## Raw HTML Tradeoff
 
-This release intentionally stores full raw HTML in `rowdata` inside both SQLite tmp databases and final xlsx files. That makes each xlsx batch portable and auditable, but files can become much larger and spreadsheet applications may be slower to open them.
+This release intentionally stores full raw HTML in `rowdata` inside final SQLite files.
 
 A future release may move raw HTML to sidecar files or compressed archives with stable row references. That alternative is not used here because the current public contract requires provenance in the final row format.
 
@@ -146,4 +141,3 @@ A future release may move raw HTML to sidecar files or compressed archives with 
 - Reusable behavior belongs under `Basement/`.
 - Source-specific crawler logic belongs under `Crawling/<source>/`.
 - `script/` should stay thin; public command wrappers should delegate to `Basement`.
-- `Stage_1` and `Stage_2` are treated equivalently by validation tooling where old error logs mention either spelling.

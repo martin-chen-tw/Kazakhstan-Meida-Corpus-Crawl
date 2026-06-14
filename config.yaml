@@ -6,7 +6,6 @@
     "user_agent": "Mozilla/5.0 (compatible; NCCUCorpusCrawler/2.0)"
   },
   "extracting": {
-    "save_xlsx_file_per_data": 1000,
     "pending_flush_rows": 50
   },
   "concurrency": {

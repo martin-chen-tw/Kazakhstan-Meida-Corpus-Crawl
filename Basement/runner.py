@@ -6,12 +6,9 @@ from pathlib import Path
 from queue import Empty, Queue
 from threading import Thread
 from .config import db_root_path, get_root_config, get_source_config, list_newspapers, load_source_configs
-from .excel_db import existing_files, merge_rows, read_rows, rewrite_rows, rewrite_sorted_rows
+from .final_sqlite_db import append_rows, count_rows, ensure_final_db, existing_files, read_urls, reset_final_db
 from .models import ArticleMeta
 from .parsing import date_from_url, slug_title
-from .sql_tmp_db import append_tmp_rows, count_tmp_rows, ensure_tmp_db, iter_tmp_rows, read_tmp_rows, read_tmp_urls, reset_tmp_db
-
-STREAM_REWRITE_ROW_THRESHOLD = 10000
 
 def _parse_date(s: str | None) -> date | None:
     return date.fromisoformat(s) if s else None
@@ -58,41 +55,42 @@ def _download_to_queue(newspaper: str, meta: ArticleMeta, pending_queue) -> dict
 
 def _write_pending_rows(cfg, rebuild: bool, db_root: Path | None, flush_rows: int, pending_queue, result_queue) -> None:
     try:
-        tmp_path = ensure_tmp_db(cfg, db_root)
-        paths = [p for _, p in existing_files(cfg, db_root)]
+        output_path = reset_final_db(cfg, db_root) if rebuild else ensure_final_db(cfg, db_root)
+        seen_urls = set() if rebuild else read_urls(output_path)
         buffer = []
         consumed = 0
+        inserted = 0
         flushes = 0
+
+        def flush_buffer() -> None:
+            nonlocal buffer, flushes, inserted
+            if not buffer:
+                return
+            inserted += append_rows(output_path, buffer)
+            buffer = []
+            flushes += 1
+
         while True:
             row = pending_queue.get()
             if row is None:
                 break
-            buffer.append(row)
             consumed += 1
+            url = str(row.get("url", "") or "")
+            if url and url in seen_urls:
+                continue
+            if url:
+                seen_urls.add(url)
+            buffer.append(row)
             if len(buffer) >= flush_rows:
-                append_tmp_rows(tmp_path, buffer)
-                buffer = []
-                flushes += 1
-        if buffer:
-            append_tmp_rows(tmp_path, buffer)
-            flushes += 1
-        row_count = count_tmp_rows(tmp_path)
-        if rebuild or not paths or row_count >= STREAM_REWRITE_ROW_THRESHOLD:
-            paths = rewrite_sorted_rows(cfg, iter_tmp_rows(tmp_path, sorted_for_output=True, xlsx_compatible=True), db_root)
-            rows_count = row_count
-        else:
-            new_rows = read_tmp_rows(tmp_path)
-            old_rows = read_rows(cfg, db_root)
-            rows = merge_rows(old_rows, new_rows, rebuild=False)
-            if new_rows:
-                paths = rewrite_rows(cfg, rows, db_root)
-            rows_count = len(rows)
+                flush_buffer()
+        flush_buffer()
         result_queue.put({
             'consumed': consumed,
-            'rows': rows_count,
+            'inserted': inserted,
+            'rows': count_rows(output_path),
             'flushes': flushes,
-            'tmp_db': str(tmp_path),
-            'written': [str(p) for p in paths],
+            'output_db': str(output_path),
+            'written': [str(output_path)],
         })
     except Exception as exc:
         result_queue.put({'error': repr(exc)})
@@ -102,31 +100,28 @@ def run_source(newspaper: str, lang: str, mode: str, start_date: date | None, en
     cfg = get_source_config(newspaper, lang)
     table = _site_module(newspaper, 'crawling_table')
     root = db_root_path(root_override) if root_override else None
-    tmp_path = None
-    if not dry_run and mode != 'rebuild':
-        tmp_path = ensure_tmp_db(cfg, root)
+    output_path = None if dry_run or mode == 'rebuild' else ensure_final_db(cfg, root)
     old_limit = os.environ.get("NCCU_CRAWL_LIMIT")
-    old_staged_db = os.environ.get("NCCU_STAGED_URL_DB")
+    old_output_db = os.environ.get("NCCU_OUTPUT_URL_DB")
     if limit: os.environ["NCCU_CRAWL_LIMIT"] = str(limit)
-    if tmp_path is not None:
-        os.environ["NCCU_STAGED_URL_DB"] = str(tmp_path)
+    if output_path is not None:
+        os.environ["NCCU_OUTPUT_URL_DB"] = str(output_path)
     try:
         metas = [ArticleMeta.from_any(x, cfg.newspaper, lang) for x in table.crawling_table(lang, start_date, end_date)]
     finally:
         if old_limit is None: os.environ.pop("NCCU_CRAWL_LIMIT", None)
         else: os.environ["NCCU_CRAWL_LIMIT"] = old_limit
-        if old_staged_db is None: os.environ.pop("NCCU_STAGED_URL_DB", None)
-        else: os.environ["NCCU_STAGED_URL_DB"] = old_staged_db
+        if old_output_db is None: os.environ.pop("NCCU_OUTPUT_URL_DB", None)
+        else: os.environ["NCCU_OUTPUT_URL_DB"] = old_output_db
     if limit: metas = metas[:limit]
     if dry_run:
         return {'newspaper': newspaper, 'lang': lang, 'listed': len(metas), 'written': [], 'dry_run': True}
-    if mode == 'rebuild':
-        tmp_path = reset_tmp_db(cfg, root)
     flush_rows = max(1, int(get_root_config('extracting', 'pending_flush_rows', default=50) or 50))
-    tmp_path = tmp_path or ensure_tmp_db(cfg, root)
-    staged_urls = read_tmp_urls(tmp_path)
-    if staged_urls:
-        metas = [meta for meta in metas if not meta.url or meta.url not in staged_urls]
+    if mode != 'rebuild':
+        output_path = output_path or ensure_final_db(cfg, root)
+        existing_urls = read_urls(output_path)
+        if existing_urls:
+            metas = [meta for meta in metas if not meta.url or meta.url not in existing_urls]
     pending_queue = Queue()
     result_queue = Queue()
     writer = Thread(target=_write_pending_rows, args=(cfg, mode == 'rebuild', root, flush_rows, pending_queue, result_queue))
@@ -163,8 +158,8 @@ def run_source(newspaper: str, lang: str, mode: str, start_date: date | None, en
     if result.get('error'):
         raise RuntimeError(f"writer failed: {result['error']}")
     return {'newspaper': newspaper, 'lang': lang, 'listed': len(metas), 'rows': rows,
-            'flushes': result.get('flushes', 0), 'tmp_db': result.get('tmp_db', ''),
-            'written': result.get('written', [])}
+            'inserted': result.get('inserted', 0), 'flushes': result.get('flushes', 0),
+            'output_db': result.get('output_db', ''), 'written': result.get('written', [])}
 
 def process_newspaper(newspaper: str, args_dict: dict) -> list[dict[str, object]]:
     threads = int(args_dict.get('threads') or get_root_config('concurrency', 'threads_per_newspaper', default=10))
