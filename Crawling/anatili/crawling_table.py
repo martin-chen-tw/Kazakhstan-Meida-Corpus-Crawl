@@ -15,6 +15,7 @@ from Basement.parsing import clean_text, in_range
 NEWSPAPER = __name__.split(".")[-2]
 BASE = "https://anatili.kazgazeta.kz"
 HEADERS = {"User-Agent": "Mozilla/5.0", "Accept-Encoding": "identity"}
+EMPTY_PAGE_LIMIT = 2
 MONTHS = {
     "қаңтар": 1, "ақпан": 2, "наурыз": 3, "сәуір": 4, "мамыр": 5, "маусым": 6,
     "шілде": 7, "тамыз": 8, "қыркүйек": 9, "қазан": 10, "қараша": 11, "желтоқсан": 12,
@@ -53,6 +54,42 @@ def _clean_title(text: str) -> str:
     return clean_text(date_re.split(text, 1)[0])
 
 
+def _last_news_url(lang: str, page: int) -> str:
+    suffix = f"/last-news?page={page}"
+    return f"{BASE}{suffix}&ln=lat" if lang == "qazaq" else f"{BASE}{suffix}"
+
+
+def _main_list_block(html: str) -> str:
+    match = re.search(
+        r'(?is)<div class=["\']col-xl-9 col-lg-8 col-md-7["\'][^>]*>(.*?)<nav>\s*<ul class=["\']pagination["\']',
+        html,
+    )
+    return match.group(1) if match else html
+
+
+def _last_page(html: str) -> int | None:
+    pages = [int(value) for value in re.findall(r"last-news\?page=(\d+)", html)]
+    return max(pages) if pages else None
+
+
+def _rows_from_page(lang: str, page: int) -> tuple[list[dict[str, str]], int | None]:
+    html = _get(_last_news_url(lang, page))
+    block = _main_list_block(html)
+    rows: list[dict[str, str]] = []
+    for match in re.finditer(r'(?is)<a\s+href=["\'](/news/\d+)["\'][^>]*>(.*?)</a>', block):
+        url = urljoin(BASE, match.group(1))
+        if lang == "qazaq":
+            url += "?ln=lat"
+        chunk = match.group(2)
+        title_match = re.search(r"(?is)<h2[^>]*>(.*?)</h2>", chunk)
+        date_match = re.search(r"(?is)<span>(\d{1,2}\s+[^<]+?\s+20\d{2})</span>", chunk)
+        title = clean_text(strip_tags(title_match.group(1))) if title_match else ""
+        day = _parse_day(date_match.group(1)) if date_match else ""
+        if title:
+            rows.append({"newspaper": NEWSPAPER, "lang": lang, "url": url, "title": title, "date": day, "time": "", "author": ""})
+    return rows, _last_page(html)
+
+
 def crawling_table(
     lang: str,
     start_date: date | None = None,
@@ -61,23 +98,29 @@ def crawling_table(
 ) -> list[dict[str, str]] | list[str]:
     get_source_config(NEWSPAPER, lang)
     limit = int(os.environ.get("NCCU_CRAWL_LIMIT", "0") or 0)
-    html = _get(f"{BASE}/?ln=lat" if lang == "qazaq" else BASE)
     rows: list[dict[str, str]] = []
     seen: set[str] = set()
-    pattern = re.compile(r'(?is)<a[^>]+href=["\'](/news/\d+)["\'][^>]*>(.*?)</a>')
-    for match in pattern.finditer(html):
-        url = urljoin(BASE, match.group(1))
-        if lang == "qazaq":
-            url += "?ln=lat"
-        if url in seen:
-            continue
-        text = clean_text(strip_tags(match.group(2)))
-        title = _clean_title(text)
-        day = _parse_day(text)
-        if not title or not in_range(day, start_date, end_date):
-            continue
-        seen.add(url)
-        rows.append({"newspaper": NEWSPAPER, "lang": lang, "url": url, "title": title, "date": day, "time": "", "author": ""})
-        if limit and len(rows) >= limit:
+    page = 1
+    max_page: int | None = None
+    empty_pages = 0
+    while True:
+        page_rows, discovered_last_page = _rows_from_page(lang, page)
+        max_page = max_page or discovered_last_page
+        if not page_rows:
+            empty_pages += 1
+            if empty_pages >= EMPTY_PAGE_LIMIT:
+                break
+        else:
+            empty_pages = 0
+        for row in page_rows:
+            url = row["url"]
+            if url in seen or not in_range(row.get("date", ""), start_date, end_date):
+                continue
+            seen.add(url)
+            rows.append(row)
+            if limit and len(rows) >= limit:
+                return rows if with_metadata else [item["url"] for item in rows]
+        if max_page and page >= max_page:
             break
+        page += 1
     return rows if with_metadata else [row["url"] for row in rows]

@@ -9,7 +9,7 @@
       "article_base_url": "https://egemen.kz",
       "default_start_date": "2000-01-01",
       "sitemaps": [
-        "https://egemen.kz/sitemap.xml"
+        "https://egemen.kz/sitemap-index.xml"
       ]
     },
     {
@@ -21,7 +21,7 @@
       "article_base_url": "https://ar.egemen.kz",
       "default_start_date": "2000-01-01",
       "sitemaps": [
-        "https://ar.egemen.kz/sitemap.xml"
+        "https://ar.egemen.kz/sitemap-index.xml"
       ]
     },
     {
@@ -33,7 +33,7 @@
       "article_base_url": "https://ru.egemen.kz",
       "default_start_date": "2000-01-01",
       "sitemaps": [
-        "https://ru.egemen.kz/sitemap.xml"
+        "https://ru.egemen.kz/sitemap-index.xml"
       ]
     },
     {
@@ -45,7 +45,7 @@
       "article_base_url": "https://en.egemen.kz",
       "default_start_date": "2000-01-01",
       "sitemaps": [
-        "https://en.egemen.kz/sitemap.xml"
+        "https://en.egemen.kz/sitemap-index.xml"
       ]
     }
   ]

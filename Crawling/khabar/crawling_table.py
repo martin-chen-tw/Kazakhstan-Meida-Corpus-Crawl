@@ -68,10 +68,8 @@ def crawling_table(
                 return rows if with_metadata else [row["url"] for row in rows]
     except Exception:
         pass
-    if rows:
-        return rows if with_metadata else [row["url"] for row in rows]
 
-    start = 0
+    start = len(rows)
     while True:
         page_url = cfg.base_url + str(start)
         try:
@@ -79,9 +77,13 @@ def crawling_table(
         except Exception:
             break
         added = 0
+        candidates = 0
         for url in links_from_html(page_url, html):
             url = absolute(page_url, url)
-            if url in seen or not _article_like(url, lang):
+            if not _article_like(url, lang):
+                continue
+            candidates += 1
+            if url in seen:
                 continue
             day = _date_from_url_or_text(url)
             if not in_range(day, start_date, end_date):
@@ -91,7 +93,7 @@ def crawling_table(
             added += 1
             if limit and len(rows) >= limit:
                 return rows if with_metadata else [row["url"] for row in rows]
-        if added == 0:
+        if candidates == 0:
             break
         start += 20
     return rows if with_metadata else [row["url"] for row in rows]

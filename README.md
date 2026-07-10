@@ -1,6 +1,6 @@
 # kz_media crawler
 
-Crawler pipeline for Kazakhstani media sources. The project lists article URLs, downloads articles, and writes each source/language pair directly to a final SQLite file.
+Crawler pipeline for Kazakhstani media sources. The project lists article URLs, downloads articles with an async runner, and writes one SQL output file from the template at `~/Desktop/kz_media.sql`.
 
 This is a breaking public schema release. New outputs include `rowdata`, the full raw HTML fetched for each article page.
 
@@ -14,7 +14,28 @@ python3 -m venv .venv
 pip install -r requirement.txt
 ```
 
-Configuration lives in `config.yaml`. The default output root is `./output`; every command below can override it with `--db-root`.
+Runtime output is controlled by `.env`:
+
+```dotenv
+KZ_MEDIA_OUTPUT_MODE=sql
+KZ_MEDIA_OUTPUT_PATH=./new_data_v2.py
+KZ_MEDIA_SQL_TEMPLATE=~/Desktop/kz_media.sql
+KZ_MEDIA_PSQL_USERNAME=
+KZ_MEDIA_PSQL_PASSWORD=
+KZ_MEDIA_PSQL_HOST=localhost
+KZ_MEDIA_PSQL_PORT=5432
+KZ_MEDIA_PSQL_DB_NAME=
+KZ_MEDIA_PSQL_SSLMODE=prefer
+KZ_MEDIA_PSQL_SCHEMA=
+KZ_MEDIA_PLATFORMS_TABLE=platforms
+KZ_MEDIA_ARTICLES_TABLE=articles
+```
+
+Modes:
+
+- `sql`: generate one SQL file at `KZ_MEDIA_OUTPUT_PATH`.
+- `psql`: generate the same SQL file, then import it with `psql -h "$KZ_MEDIA_PSQL_HOST" -p "$KZ_MEDIA_PSQL_PORT" -U "$KZ_MEDIA_PSQL_USERNAME" -d "$KZ_MEDIA_PSQL_DB_NAME" -f "$KZ_MEDIA_OUTPUT_PATH"`.
+- `sqlite`: legacy compatibility mode for the older per-source SQLite output.
 
 ## Commands
 
@@ -30,6 +51,8 @@ Rebuild one source/lang from scratch:
 python3 script/rebuild.py --newspaper tengri --lang ru --db-root /path/to/data
 ```
 
+With the default `.env`, both commands write `./new_data_v2.py`. `--db-root` only affects legacy `sqlite` mode.
+
 Limit a run for smoke validation:
 
 ```bash
@@ -38,7 +61,7 @@ python3 script/update_db.py --newspaper tengri --lang ru --limit 100 --db-root /
 
 Run every configured source/lang by scripting over `script/list_sources.py`; do not rely on `--all` when you need per-pair evidence.
 
-Check generated SQLite files:
+Check generated SQLite files in legacy mode:
 
 ```bash
 python3 script/error_check.py /home/martin/Desktop/kz_media/data_v2 --output /home/martin/Desktop/kz_media/data_v2/error_report.json
@@ -52,18 +75,19 @@ python3 script/error_check.py /home/martin/Desktop/kz_media/data_v2 --output /ho
 
 ## Data Layout
 
-For a root such as `/home/martin/Desktop/kz_media/data_v2`, output is written as:
+The default output is one SQL file:
 
 ```text
-data_v2/
-  tengri_ru.sqlite
+new_data_v2.py
 ```
 
-`update_db.py` and `rebuild.py` read and write the matching final `<newspaper>_<lang>.sqlite` file in the selected root. The configured `save_path` is not used for final SQLite placement.
+The file starts with the template from `KZ_MEDIA_SQL_TEMPLATE`, then appends `INSERT` statements for `KZ_MEDIA_PLATFORMS_TABLE` and `KZ_MEDIA_ARTICLES_TABLE`. If `KZ_MEDIA_PSQL_SCHEMA` is set, generated inserts use `"schema"."table"`.
+
+In legacy `sqlite` mode, output is written as `<db-root>/<newspaper>_<lang>.sqlite`.
 
 ## Row Schema
 
-Every newly written row uses this canonical column order:
+Crawler rows use this canonical internal order:
 
 ```text
 newspaper, url, title, date, time, author, body, rowdata
@@ -80,7 +104,9 @@ Field meanings:
 - `body`: cleaned article text.
 - `rowdata`: full raw HTML fetched for the article page.
 
-Legacy non-SQLite exports are no longer supported as an output or validation format. Provenance-complete exports require rebuilding or updating rows so the raw HTML is fetched and stored in final SQLite.
+The SQL template stores article text in `article_body`. `rowdata` remains available internally and in legacy SQLite output, but the current `~/Desktop/kz_media.sql` template has no `rowdata` column.
+
+Akorda crawler modules are still selected by their folder names such as `akorda_addresses`, but SQL output stores them as `newspaper='akorda'` and places the suffix (`addresses`, `events`, `legal_acts`, `speeches`) in `category`.
 
 ## Supported Sources
 
@@ -92,7 +118,7 @@ Legacy non-SQLite exports are no longer supported as an output or validation for
 | `akorda_speeches` | `ru`, `en`, `kz` |
 | `anatili` | `kz`, `qazaq` |
 | `egemen` | `kz`, `qazaq`, `ru`, `en` |
-| `kazpravda` | `ru` |
+| `kazpravda` | `ru`, `en`, `qaz` |
 | `khabar` | `ru`, `kz` |
 | `kursiv` | `ru`, `kz`, `en` |
 | `nur` | `ru`, `kz` |
@@ -110,10 +136,10 @@ Run unit tests:
 python3 -m unittest discover -s tests
 ```
 
-Run each configured source/lang with `--limit 100` into an isolated validation root:
+Run one configured source/lang with `--limit 100` into the `.env` output file:
 
 ```bash
-python3 script/update_db.py --newspaper <source> --lang <lang> --limit 100 --db-root /home/martin/Desktop/kz_media/data_v2
+python3 script/update_db.py --newspaper <source> --lang <lang> --limit 100
 ```
 
 Then scan the generated files:

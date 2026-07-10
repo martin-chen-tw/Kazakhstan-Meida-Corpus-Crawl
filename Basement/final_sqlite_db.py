@@ -47,6 +47,9 @@ def read_rows(cfg: SourceConfig, db_root: Path | None = None) -> list[dict[str, 
 
 
 def read_urls(path: Path) -> set[str]:
+    if path.suffix != ".sqlite":
+        from .final_sql_db import read_urls as read_sql_urls
+        return read_sql_urls(path)
     if not path.exists():
         return set()
     con = _connect(path)

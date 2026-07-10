@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
 from Basement.config import get_source_config
@@ -38,6 +39,10 @@ def _items(xml_text: str) -> list[dict[str, str]]:
     except Exception:
         rows = [{"url": url, "date": "", "time": ""} for url in _locs(xml_text)]
     return rows
+
+
+def _items_from_url(url: str) -> list[dict[str, str]]:
+    return _items(get_text(url, retries=1, timeout=20))
 
 
 def _sample_items(items: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -85,20 +90,28 @@ def crawling_table(
     rows: list[dict[str, str]] = []
     seen: set[str] = set()
     candidates = []
-    for item in _items(get_text(cfg.sitemaps[0], retries=1, timeout=20)):
-        raw_url = item["url"]
-        if not raw_url.startswith(f"{host}/article/"):
-            continue
-        url = _canonical_article_url(raw_url, lang)
-        if url in seen:
-            continue
-        if not in_range(item.get("date", ""), start_date, end_date):
-            continue
-        seen.add(url)
-        item = {**item, "url": url}
-        candidates.append(item)
-        if limit and len(candidates) >= limit:
-            break
+    index_text = get_text(cfg.sitemaps[0], retries=1, timeout=20)
+    sitemap_urls = [url for url in _locs(index_text) if url.endswith(".xml")]
+    with ThreadPoolExecutor(max_workers=min(8, max(1, len(sitemap_urls or cfg.sitemaps)))) as executor:
+        for items in executor.map(_items_from_url, sitemap_urls or cfg.sitemaps):
+            stop = False
+            for item in items:
+                raw_url = item["url"]
+                if not raw_url.startswith(f"{host}/article/"):
+                    continue
+                url = _canonical_article_url(raw_url, lang)
+                if url in seen:
+                    continue
+                if not in_range(item.get("date", ""), start_date, end_date):
+                    continue
+                seen.add(url)
+                item = {**item, "url": url}
+                candidates.append(item)
+                if limit and len(candidates) >= limit:
+                    stop = True
+                    break
+            if stop:
+                break
     if _looks_like_broken_sitemap(candidates, lang):
         return rows if with_metadata else []
     for item in candidates:

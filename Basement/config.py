@@ -7,6 +7,7 @@ from .models import SourceConfig
 
 ROOT_PATH = Path(__file__).resolve().parent.parent
 COLAB_ENV = "COLAB_RELEASE_TAG" in os.environ
+ENV_PATH = ROOT_PATH / ".env"
 
 def _parse_scalar(v: str) -> Any:
     v = v.strip().strip('"').strip("'")
@@ -46,6 +47,50 @@ def read_config_file(path: Path) -> dict[str, Any]:
         except Exception:
             return _mini_yaml(text)
 
+def load_env(path: Path = ENV_PATH) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    env: dict[str, str] = {}
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        env[key.strip()] = value.strip().strip('"').strip("'")
+    return env
+
+def env_value(key: str, default: str = "") -> str:
+    return os.environ[key] if key in os.environ else load_env().get(key, default)
+
+def output_mode() -> str:
+    return env_value("KZ_MEDIA_OUTPUT_MODE", "sql").strip().lower()
+
+def output_path(override: str | None = None) -> Path:
+    raw = override or env_value("KZ_MEDIA_OUTPUT_PATH", "./new_data_v2.py")
+    path = Path(raw).expanduser()
+    return (ROOT_PATH / path).resolve() if not path.is_absolute() else path
+
+def sql_template_path() -> Path:
+    raw = env_value("KZ_MEDIA_SQL_TEMPLATE", "~/Desktop/kz_media.sql")
+    return Path(raw).expanduser()
+
+def psql_settings() -> dict[str, str]:
+    return {
+        "username": env_value("KZ_MEDIA_PSQL_USERNAME", ""),
+        "password": env_value("KZ_MEDIA_PSQL_PASSWORD", ""),
+        "host": env_value("KZ_MEDIA_PSQL_HOST", "localhost"),
+        "port": env_value("KZ_MEDIA_PSQL_PORT", "5432"),
+        "db_name": env_value("KZ_MEDIA_PSQL_DB_NAME", ""),
+        "sslmode": env_value("KZ_MEDIA_PSQL_SSLMODE", "prefer"),
+        "schema": env_value("KZ_MEDIA_PSQL_SCHEMA", ""),
+    }
+
+def sql_table_names() -> tuple[str, str]:
+    return (
+        env_value("KZ_MEDIA_PLATFORMS_TABLE", "platforms"),
+        env_value("KZ_MEDIA_ARTICLES_TABLE", "articles"),
+    )
+
 def get_root_config(*keys: str, default: Any = None) -> Any:
     value: Any = read_config_file(ROOT_PATH / "config.yaml")
     for key in keys:
@@ -72,14 +117,19 @@ def load_source_configs(newspaper: str) -> list[SourceConfig]:
     for item in items:
         sitemaps = item.get("sitemaps") or []
         if isinstance(sitemaps, str): sitemaps = [sitemaps]
+        source_name = item.get("newspaper", newspaper)
+        extra = {k: v for k, v in item.items() if k not in {
+            "newspaper", "lang", "save_path", "base_filename", "base_url", "article_base_url",
+            "default_start_date", "sitemaps"}}
+        if source_name.startswith("akorda_"):
+            extra.setdefault("category", source_name.removeprefix("akorda_"))
+            source_name = "akorda"
         out.append(SourceConfig(
-            newspaper=item.get("newspaper", newspaper), lang=item["lang"],
+            newspaper=source_name, lang=item["lang"],
             save_path=Path(item["save_path"]), base_filename=item["base_filename"],
             base_url=item.get("base_url", ""), article_base_url=item.get("article_base_url", ""),
             default_start_date=date.fromisoformat(item.get("default_start_date", "2000-01-01")),
-            sitemaps=sitemaps, extra={k: v for k, v in item.items() if k not in {
-                "newspaper", "lang", "save_path", "base_filename", "base_url", "article_base_url",
-                "default_start_date", "sitemaps"}},
+            sitemaps=sitemaps, extra=extra,
         ))
     return out
 

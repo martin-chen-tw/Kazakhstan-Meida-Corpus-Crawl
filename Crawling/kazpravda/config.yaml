@@ -11,6 +11,30 @@
       "sitemaps": [
         "https://kazpravda.kz/sitemap.xml"
       ]
+    },
+    {
+      "newspaper": "kazpravda",
+      "lang": "en",
+      "save_path": "kazpravda_en/",
+      "base_filename": "kazpravda_en_Stage1_",
+      "base_url": "https://kazpravda.kz/en/",
+      "article_base_url": "https://kazpravda.kz",
+      "default_start_date": "2013-11-12",
+      "sitemaps": [
+        "https://kazpravda.kz/sitemap.xml"
+      ]
+    },
+    {
+      "newspaper": "kazpravda",
+      "lang": "qaz",
+      "save_path": "kazpravda_qaz/",
+      "base_filename": "kazpravda_qaz_Stage1_",
+      "base_url": "https://kazpravda.kz/kk/",
+      "article_base_url": "https://kazpravda.kz",
+      "default_start_date": "2013-11-12",
+      "sitemaps": [
+        "https://kazpravda.kz/sitemap.xml"
+      ]
     }
   ]
 }
